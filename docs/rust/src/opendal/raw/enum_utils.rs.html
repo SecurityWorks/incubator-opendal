@@ -1,6 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/raw/enum_utils.rs`."><title>enum_utils.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-bf502f66ec635d5d.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="opendal" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.0-nightly (e51e98dde 2023-12-31)" data-channel="nightly" data-search-js="search-c17e98913a53b3b7.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-0b2e2def73e61cbe.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
-            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
-    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../opendal/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/raw/enum_utils.rs`."><title>enum_utils.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-2c208a72533b4dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="opendal" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (0bf471f33 2024-04-13)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../opendal/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings">Settings</a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -237,58 +235,6 @@
 <a href="#235" id="235">235</a>
 <a href="#236" id="236">236</a>
 <a href="#237" id="237">237</a>
-<a href="#238" id="238">238</a>
-<a href="#239" id="239">239</a>
-<a href="#240" id="240">240</a>
-<a href="#241" id="241">241</a>
-<a href="#242" id="242">242</a>
-<a href="#243" id="243">243</a>
-<a href="#244" id="244">244</a>
-<a href="#245" id="245">245</a>
-<a href="#246" id="246">246</a>
-<a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
-<a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
-<a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
-<a href="#254" id="254">254</a>
-<a href="#255" id="255">255</a>
-<a href="#256" id="256">256</a>
-<a href="#257" id="257">257</a>
-<a href="#258" id="258">258</a>
-<a href="#259" id="259">259</a>
-<a href="#260" id="260">260</a>
-<a href="#261" id="261">261</a>
-<a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
-<a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a>
-<a href="#283" id="283">283</a>
-<a href="#284" id="284">284</a>
-<a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a>
-<a href="#287" id="287">287</a>
-<a href="#288" id="288">288</a>
-<a href="#289" id="289">289</a>
 </pre></div><pre class="rust"><code><span class="comment">// Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -310,7 +256,7 @@
 //! So we can't write the following code:
 //!
 //! ```txt
-//! impl Accessor for S3Backend {
+//! impl Access for S3Backend {
 //!     type Writer = impl oio::Write;
 //! }
 //! ```
@@ -318,7 +264,7 @@
 //! Which means we have to write the type directly like:
 //!
 //! ```txt
-//! impl Accessor for OssBackend {
+//! impl Access for OssBackend {
 //!     type Writer = raw::TwoWays&lt;
 //!         oio::MultipartWriter&lt;OssWriter&gt;,
 //!         oio::AppendWriter&lt;OssWriter&gt;,
@@ -329,11 +275,7 @@
 //! This module is used to provide some enums for the above code. We should remove this module once
 //! type_alias_impl_trait has been stabilized.
 
-</span><span class="kw">use </span>std::io::SeekFrom;
-
-<span class="kw">use </span>bytes::Bytes;
-
-<span class="kw">use </span><span class="kw">crate</span>::raw::<span class="kw-2">*</span>;
+</span><span class="kw">use </span><span class="kw">crate</span>::raw::<span class="kw-2">*</span>;
 <span class="kw">use crate</span>::<span class="kw-2">*</span>;
 
 <span class="doccomment">/// TwoWays is used to implement traits that based on two ways.
@@ -347,39 +289,25 @@
 }
 
 <span class="kw">impl</span>&lt;ONE: oio::Read, TWO: oio::Read&gt; oio::Read <span class="kw">for </span>TwoWays&lt;ONE, TWO&gt; {
-    <span class="kw">async fn </span>seek(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pos: SeekFrom) -&gt; <span class="prelude-ty">Result</span>&lt;u64&gt; {
+    <span class="kw">async fn </span>read_at(<span class="kw-2">&amp;</span><span class="self">self</span>, offset: u64, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Buffer&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::One(v) =&gt; v.seek(pos).<span class="kw">await</span>,
-            <span class="self">Self</span>::Two(v) =&gt; v.seek(pos).<span class="kw">await</span>,
-        }
-    }
-
-    <span class="kw">async fn </span>read(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes&gt; {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::One(v) =&gt; v.read(limit).<span class="kw">await</span>,
-            <span class="self">Self</span>::Two(v) =&gt; v.read(limit).<span class="kw">await</span>,
+            TwoWays::One(v) =&gt; v.read_at(offset, limit).<span class="kw">await</span>,
+            TwoWays::Two(v) =&gt; v.read_at(offset, limit).<span class="kw">await</span>,
         }
     }
 }
 
 <span class="kw">impl</span>&lt;ONE: oio::BlockingRead, TWO: oio::BlockingRead&gt; oio::BlockingRead <span class="kw">for </span>TwoWays&lt;ONE, TWO&gt; {
-    <span class="kw">fn </span>read(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes&gt; {
+    <span class="kw">fn </span>read_at(<span class="kw-2">&amp;</span><span class="self">self</span>, offset: u64, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Buffer&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::One(v) =&gt; v.read(limit),
-            <span class="self">Self</span>::Two(v) =&gt; v.read(limit),
-        }
-    }
-
-    <span class="kw">fn </span>seek(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pos: SeekFrom) -&gt; <span class="prelude-ty">Result</span>&lt;u64&gt; {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::One(v) =&gt; v.seek(pos),
-            <span class="self">Self</span>::Two(v) =&gt; v.seek(pos),
+            <span class="self">Self</span>::One(v) =&gt; v.read_at(offset, limit),
+            <span class="self">Self</span>::Two(v) =&gt; v.read_at(offset, limit),
         }
     }
 }
 
 <span class="kw">impl</span>&lt;ONE: oio::Write, TWO: oio::Write&gt; oio::Write <span class="kw">for </span>TwoWays&lt;ONE, TWO&gt; {
-    <span class="kw">async fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Bytes) -&gt; <span class="prelude-ty">Result</span>&lt;usize&gt; {
+    <span class="kw">async fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Buffer) -&gt; <span class="prelude-ty">Result</span>&lt;usize&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::One(v) =&gt; v.write(bs).<span class="kw">await</span>,
             <span class="self">Self</span>::Two(v) =&gt; v.write(bs).<span class="kw">await</span>,
@@ -414,19 +342,11 @@
 }
 
 <span class="kw">impl</span>&lt;ONE: oio::Read, TWO: oio::Read, THREE: oio::Read&gt; oio::Read <span class="kw">for </span>ThreeWays&lt;ONE, TWO, THREE&gt; {
-    <span class="kw">async fn </span>seek(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pos: SeekFrom) -&gt; <span class="prelude-ty">Result</span>&lt;u64&gt; {
+    <span class="kw">async fn </span>read_at(<span class="kw-2">&amp;</span><span class="self">self</span>, offset: u64, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Buffer&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::One(v) =&gt; v.seek(pos).<span class="kw">await</span>,
-            <span class="self">Self</span>::Two(v) =&gt; v.seek(pos).<span class="kw">await</span>,
-            <span class="self">Self</span>::Three(v) =&gt; v.seek(pos).<span class="kw">await</span>,
-        }
-    }
-
-    <span class="kw">async fn </span>read(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes&gt; {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::One(v) =&gt; v.read(limit).<span class="kw">await</span>,
-            <span class="self">Self</span>::Two(v) =&gt; v.read(limit).<span class="kw">await</span>,
-            <span class="self">Self</span>::Three(v) =&gt; v.read(limit).<span class="kw">await</span>,
+            ThreeWays::One(v) =&gt; v.read_at(offset, limit).<span class="kw">await</span>,
+            ThreeWays::Two(v) =&gt; v.read_at(offset, limit).<span class="kw">await</span>,
+            ThreeWays::Three(v) =&gt; v.read_at(offset, limit).<span class="kw">await</span>,
         }
     }
 }
@@ -434,19 +354,11 @@
 <span class="kw">impl</span>&lt;ONE: oio::BlockingRead, TWO: oio::BlockingRead, THREE: oio::BlockingRead&gt; oio::BlockingRead
     <span class="kw">for </span>ThreeWays&lt;ONE, TWO, THREE&gt;
 {
-    <span class="kw">fn </span>read(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes&gt; {
+    <span class="kw">fn </span>read_at(<span class="kw-2">&amp;</span><span class="self">self</span>, offset: u64, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Buffer&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::One(v) =&gt; v.read(limit),
-            <span class="self">Self</span>::Two(v) =&gt; v.read(limit),
-            <span class="self">Self</span>::Three(v) =&gt; v.read(limit),
-        }
-    }
-
-    <span class="kw">fn </span>seek(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pos: SeekFrom) -&gt; <span class="prelude-ty">Result</span>&lt;u64&gt; {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::One(v) =&gt; v.seek(pos),
-            <span class="self">Self</span>::Two(v) =&gt; v.seek(pos),
-            <span class="self">Self</span>::Three(v) =&gt; v.seek(pos),
+            <span class="self">Self</span>::One(v) =&gt; v.read_at(offset, limit),
+            <span class="self">Self</span>::Two(v) =&gt; v.read_at(offset, limit),
+            <span class="self">Self</span>::Three(v) =&gt; v.read_at(offset, limit),
         }
     }
 }
@@ -454,7 +366,7 @@
 <span class="kw">impl</span>&lt;ONE: oio::Write, TWO: oio::Write, THREE: oio::Write&gt; oio::Write
     <span class="kw">for </span>ThreeWays&lt;ONE, TWO, THREE&gt;
 {
-    <span class="kw">async fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Bytes) -&gt; <span class="prelude-ty">Result</span>&lt;usize&gt; {
+    <span class="kw">async fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Buffer) -&gt; <span class="prelude-ty">Result</span>&lt;usize&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::One(v) =&gt; v.write(bs).<span class="kw">await</span>,
             <span class="self">Self</span>::Two(v) =&gt; v.write(bs).<span class="kw">await</span>,
@@ -500,21 +412,12 @@
     THREE: oio::Read,
     FOUR: oio::Read,
 {
-    <span class="kw">async fn </span>seek(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pos: SeekFrom) -&gt; <span class="prelude-ty">Result</span>&lt;u64&gt; {
+    <span class="kw">async fn </span>read_at(<span class="kw-2">&amp;</span><span class="self">self</span>, offset: u64, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Buffer&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::One(v) =&gt; v.seek(pos).<span class="kw">await</span>,
-            <span class="self">Self</span>::Two(v) =&gt; v.seek(pos).<span class="kw">await</span>,
-            <span class="self">Self</span>::Three(v) =&gt; v.seek(pos).<span class="kw">await</span>,
-            <span class="self">Self</span>::Four(v) =&gt; v.seek(pos).<span class="kw">await</span>,
-        }
-    }
-
-    <span class="kw">async fn </span>read(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes&gt; {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::One(v) =&gt; v.read(limit).<span class="kw">await</span>,
-            <span class="self">Self</span>::Two(v) =&gt; v.read(limit).<span class="kw">await</span>,
-            <span class="self">Self</span>::Three(v) =&gt; v.read(limit).<span class="kw">await</span>,
-            <span class="self">Self</span>::Four(v) =&gt; v.read(limit).<span class="kw">await</span>,
+            FourWays::One(v) =&gt; v.read_at(offset, limit).<span class="kw">await</span>,
+            FourWays::Two(v) =&gt; v.read_at(offset, limit).<span class="kw">await</span>,
+            FourWays::Three(v) =&gt; v.read_at(offset, limit).<span class="kw">await</span>,
+            FourWays::Four(v) =&gt; v.read_at(offset, limit).<span class="kw">await</span>,
         }
     }
 }
@@ -526,21 +429,12 @@
     THREE: oio::BlockingRead,
     FOUR: oio::BlockingRead,
 {
-    <span class="kw">fn </span>read(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes&gt; {
+    <span class="kw">fn </span>read_at(<span class="kw-2">&amp;</span><span class="self">self</span>, offset: u64, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Buffer&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::One(v) =&gt; v.read(limit),
-            <span class="self">Self</span>::Two(v) =&gt; v.read(limit),
-            <span class="self">Self</span>::Three(v) =&gt; v.read(limit),
-            <span class="self">Self</span>::Four(v) =&gt; v.read(limit),
-        }
-    }
-
-    <span class="kw">fn </span>seek(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pos: SeekFrom) -&gt; <span class="prelude-ty">Result</span>&lt;u64&gt; {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::One(v) =&gt; v.seek(pos),
-            <span class="self">Self</span>::Two(v) =&gt; v.seek(pos),
-            <span class="self">Self</span>::Three(v) =&gt; v.seek(pos),
-            <span class="self">Self</span>::Four(v) =&gt; v.seek(pos),
+            <span class="self">Self</span>::One(v) =&gt; v.read_at(offset, limit),
+            <span class="self">Self</span>::Two(v) =&gt; v.read_at(offset, limit),
+            <span class="self">Self</span>::Three(v) =&gt; v.read_at(offset, limit),
+            <span class="self">Self</span>::Four(v) =&gt; v.read_at(offset, limit),
         }
     }
 }
