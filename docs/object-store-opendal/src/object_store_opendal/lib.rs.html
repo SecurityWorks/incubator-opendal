@@ -507,6 +507,25 @@
 <a href="#507" id="507">507</a>
 <a href="#508" id="508">508</a>
 <a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
 </pre></div><pre class="rust"><code><span class="comment">// Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -540,10 +559,12 @@
 <span class="kw">use </span>object_store::GetResult;
 <span class="kw">use </span>object_store::GetResultPayload;
 <span class="kw">use </span>object_store::ListResult;
-<span class="kw">use </span>object_store::MultipartId;
+<span class="kw">use </span>object_store::MultipartUpload;
 <span class="kw">use </span>object_store::ObjectMeta;
 <span class="kw">use </span>object_store::ObjectStore;
+<span class="kw">use </span>object_store::PutMultipartOpts;
 <span class="kw">use </span>object_store::PutOptions;
+<span class="kw">use </span>object_store::PutPayload;
 <span class="kw">use </span>object_store::PutResult;
 <span class="kw">use </span>object_store::Result;
 <span class="kw">use </span>opendal::Entry;
@@ -552,7 +573,6 @@
 <span class="kw">use </span>opendal::Operator;
 <span class="kw">use </span>send_wrapper::IntoSendFuture;
 <span class="kw">use </span>send_wrapper::IntoSendStream;
-<span class="kw">use </span>tokio::io::AsyncWrite;
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>OpendalStore {
@@ -574,7 +594,8 @@
 
 <span class="attr">#[async_trait]
 </span><span class="kw">impl </span>ObjectStore <span class="kw">for </span>OpendalStore {
-    <span class="kw">async fn </span>put(<span class="kw-2">&amp;</span><span class="self">self</span>, location: <span class="kw-2">&amp;</span>Path, bytes: Bytes) -&gt; <span class="prelude-ty">Result</span>&lt;PutResult&gt; {
+    <span class="kw">async fn </span>put(<span class="kw-2">&amp;</span><span class="self">self</span>, location: <span class="kw-2">&amp;</span>Path, bytes: PutPayload) -&gt; <span class="prelude-ty">Result</span>&lt;PutResult&gt; {
+        <span class="kw">let </span>bytes: Bytes = bytes.into();
         <span class="self">self</span>.inner
             .write(location.as_ref(), bytes)
             .into_send()
@@ -589,7 +610,7 @@
     <span class="kw">async fn </span>put_opts(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         _location: <span class="kw-2">&amp;</span>Path,
-        _bytes: Bytes,
+        _bytes: PutPayload,
         _opts: PutOptions,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;PutResult&gt; {
         <span class="prelude-val">Err</span>(object_store::Error::NotSupported {
@@ -600,10 +621,7 @@
         })
     }
 
-    <span class="kw">async fn </span>put_multipart(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        _location: <span class="kw-2">&amp;</span>Path,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(MultipartId, Box&lt;<span class="kw">dyn </span>AsyncWrite + Unpin + Send&gt;)&gt; {
+    <span class="kw">async fn </span>put_multipart(<span class="kw-2">&amp;</span><span class="self">self</span>, _location: <span class="kw-2">&amp;</span>Path) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;<span class="kw">dyn </span>MultipartUpload&gt;&gt; {
         <span class="prelude-val">Err</span>(object_store::Error::NotSupported {
             source: Box::new(opendal::Error::new(
                 opendal::ErrorKind::Unsupported,
@@ -612,20 +630,15 @@
         })
     }
 
-    <span class="kw">async fn </span>abort_multipart(<span class="kw-2">&amp;</span><span class="self">self</span>, _location: <span class="kw-2">&amp;</span>Path, _multipart_id: <span class="kw-2">&amp;</span>MultipartId) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+    <span class="kw">async fn </span>put_multipart_opts(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        _location: <span class="kw-2">&amp;</span>Path,
+        _opts: PutMultipartOpts,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;<span class="kw">dyn </span>MultipartUpload&gt;&gt; {
         <span class="prelude-val">Err</span>(object_store::Error::NotSupported {
             source: Box::new(opendal::Error::new(
                 opendal::ErrorKind::Unsupported,
-                <span class="string">"abort_multipart is not implemented so far"</span>,
-            )),
-        })
-    }
-
-    <span class="kw">async fn </span>get_opts(<span class="kw-2">&amp;</span><span class="self">self</span>, _location: <span class="kw-2">&amp;</span>Path, _options: GetOptions) -&gt; <span class="prelude-ty">Result</span>&lt;GetResult&gt; {
-        <span class="prelude-val">Err</span>(object_store::Error::NotSupported {
-            source: Box::new(opendal::Error::new(
-                opendal::ErrorKind::Unsupported,
-                <span class="string">"get_opts is not implemented so far"</span>,
+                <span class="string">"put_multipart_opts is not implemented so far"</span>,
             )),
         })
     }
@@ -654,7 +667,12 @@
 
         <span class="kw">let </span>stream = r
             .into_bytes_stream(<span class="number">0</span>..meta.size <span class="kw">as </span>u64)
-            .into_send()
+            .<span class="kw">await
+            </span>.map_err(|err| object_store::Error::Generic {
+                store: <span class="string">"IoError"</span>,
+                source: Box::new(err),
+            })<span class="question-mark">?
+            </span>.into_send()
             .map_err(|err| object_store::Error::Generic {
                 store: <span class="string">"IoError"</span>,
                 source: Box::new(err),
@@ -662,8 +680,18 @@
 
         <span class="prelude-val">Ok</span>(GetResult {
             payload: GetResultPayload::Stream(Box::pin(stream)),
-            range: (<span class="number">0</span>..meta.size),
+            range: <span class="number">0</span>..meta.size,
             meta,
+            attributes: Default::default(),
+        })
+    }
+
+    <span class="kw">async fn </span>get_opts(<span class="kw-2">&amp;</span><span class="self">self</span>, _location: <span class="kw-2">&amp;</span>Path, _options: GetOptions) -&gt; <span class="prelude-ty">Result</span>&lt;GetResult&gt; {
+        <span class="prelude-val">Err</span>(object_store::Error::NotSupported {
+            source: Box::new(opendal::Error::new(
+                opendal::ErrorKind::Unsupported,
+                <span class="string">"get_opts is not implemented so far"</span>,
+            )),
         })
     }
 
@@ -857,12 +885,22 @@
 }
 
 <span class="kw">fn </span>format_object_meta(path: <span class="kw-2">&amp;</span>str, meta: <span class="kw-2">&amp;</span>Metadata) -&gt; ObjectMeta {
+    <span class="kw">let </span>version = <span class="kw">match </span>meta.metakey().contains(Metakey::Version) {
+        <span class="bool-val">true </span>=&gt; meta.version().map(|x| x.to_string()),
+        <span class="bool-val">false </span>=&gt; <span class="prelude-val">None</span>,
+    };
+
+    <span class="kw">let </span>e_tag = <span class="kw">match </span>meta.metakey().contains(Metakey::Etag) {
+        <span class="bool-val">true </span>=&gt; meta.etag().map(|x| x.to_string()),
+        <span class="bool-val">false </span>=&gt; <span class="prelude-val">None</span>,
+    };
+
     ObjectMeta {
         location: path.into(),
         last_modified: meta.last_modified().unwrap_or_default(),
         size: meta.content_length() <span class="kw">as </span>usize,
-        e_tag: meta.etag().map(|x| x.to_string()),
-        version: meta.version().map(|x| x.to_string()),
+        e_tag,
+        version,
     }
 }
 
@@ -914,11 +952,11 @@
 
         <span class="kw">let </span>path: Path = <span class="string">"data/test.txt"</span>.into();
         <span class="kw">let </span>bytes = Bytes::from_static(<span class="string">b"hello, world!"</span>);
-        object_store.put(<span class="kw-2">&amp;</span>path, bytes).<span class="kw">await</span>.unwrap();
+        object_store.put(<span class="kw-2">&amp;</span>path, bytes.into()).<span class="kw">await</span>.unwrap();
 
         <span class="kw">let </span>path: Path = <span class="string">"data/nested/test.txt"</span>.into();
         <span class="kw">let </span>bytes = Bytes::from_static(<span class="string">b"hello, world! I am nested."</span>);
-        object_store.put(<span class="kw-2">&amp;</span>path, bytes).<span class="kw">await</span>.unwrap();
+        object_store.put(<span class="kw-2">&amp;</span>path, bytes.into()).<span class="kw">await</span>.unwrap();
 
         object_store
     }
@@ -932,7 +970,7 @@
         </span><span class="kw">let </span>path: Path = <span class="string">"data/test.txt"</span>.into();
 
         <span class="kw">let </span>bytes = Bytes::from_static(<span class="string">b"hello, world!"</span>);
-        object_store.put(<span class="kw-2">&amp;</span>path, bytes.clone()).<span class="kw">await</span>.unwrap();
+        object_store.put(<span class="kw-2">&amp;</span>path, bytes.clone().into()).<span class="kw">await</span>.unwrap();
 
         <span class="kw">let </span>meta = object_store.head(<span class="kw-2">&amp;</span>path).<span class="kw">await</span>.unwrap();
 
