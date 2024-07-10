@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/services/aliyun_drive/backend.rs`."><title>backend.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-2c208a72533b4dd0.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="opendal" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (0bf471f33 2024-04-13)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../../opendal/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings">Settings</a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/services/aliyun_drive/backend.rs`."><title>backend.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="opendal" data-themes="" data-resource-suffix="" data-rustdoc-version="1.81.0-nightly (8337ba918 2024-06-12)" data-channel="nightly" data-search-js="search-0fe7219eb170c82e.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -483,7 +483,6 @@
 <a href="#483" id="483">483</a>
 <a href="#484" id="484">484</a>
 <a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a>
 </pre></div><pre class="rust"><code><span class="comment">// Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -520,7 +519,6 @@
 <span class="kw">use </span><span class="kw">super</span>::lister::AliyunDriveLister;
 <span class="kw">use </span><span class="kw">super</span>::lister::AliyunDriveParent;
 <span class="kw">use </span><span class="kw">super</span>::writer::AliyunDriveWriter;
-<span class="kw">use </span><span class="kw">super</span>::writer::AliyunDriveWriters;
 <span class="kw">use </span><span class="kw">crate</span>::raw::<span class="kw-2">*</span>;
 <span class="kw">use crate</span>::<span class="kw-2">*</span>;
 
@@ -529,25 +527,31 @@
 #[serde(default)]
 #[non_exhaustive]
 </span><span class="kw">pub struct </span>AliyunDriveConfig {
-    <span class="doccomment">/// root of this backend.
+    <span class="doccomment">/// The Root of this backend.
     ///
     /// All operations will happen under this root.
     ///
-    /// default to `/` if not set.
+    /// Default to `/` if not set.
     </span><span class="kw">pub </span>root: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="doccomment">/// client_id of this backend.
+    <span class="doccomment">/// The access_token of this backend.
     ///
-    /// required.
-    </span><span class="kw">pub </span>client_id: String,
-    <span class="doccomment">/// client_secret of this backend.
+    /// Solution for client-only purpose. #4733
     ///
-    /// required.
-    </span><span class="kw">pub </span>client_secret: String,
-    <span class="doccomment">/// refresh_token of this backend.
+    /// Required if no client_id, client_secret and refresh_token are provided.
+    </span><span class="kw">pub </span>access_token: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="doccomment">/// The client_id of this backend.
     ///
-    /// required.
-    </span><span class="kw">pub </span>refresh_token: String,
-    <span class="doccomment">/// drive_type of this backend.
+    /// Required if no access_token is provided.
+    </span><span class="kw">pub </span>client_id: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="doccomment">/// The client_secret of this backend.
+    ///
+    /// Required if no access_token is provided.
+    </span><span class="kw">pub </span>client_secret: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="doccomment">/// The refresh_token of this backend.
+    ///
+    /// Required if no access_token is provided.
+    </span><span class="kw">pub </span>refresh_token: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="doccomment">/// The drive_type of this backend.
     ///
     /// All operations will happen under this type of drive.
     ///
@@ -555,12 +559,6 @@
     ///
     /// Fallback to default if not set or no other drives can be found.
     </span><span class="kw">pub </span>drive_type: String,
-    <span class="doccomment">/// rapid_upload of this backend.
-    ///
-    /// Skip uploading files that are already in the drive by hashing their content.
-    ///
-    /// Only works under the write_once operation.
-    </span><span class="kw">pub </span>rapid_upload: bool,
 }
 
 <span class="kw">impl </span>Debug <span class="kw">for </span>AliyunDriveConfig {
@@ -592,7 +590,7 @@
 }
 
 <span class="kw">impl </span>AliyunDriveBuilder {
-    <span class="doccomment">/// Set root of this backend.
+    <span class="doccomment">/// Set the root of this backend.
     ///
     /// All operations will happen under this root.
     </span><span class="kw">pub fn </span>root(<span class="kw-2">&amp;mut </span><span class="self">self</span>, root: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
@@ -605,23 +603,30 @@
         <span class="self">self
     </span>}
 
+    <span class="doccomment">/// Set access_token of this backend.
+    </span><span class="kw">pub fn </span>access_token(<span class="kw-2">&amp;mut </span><span class="self">self</span>, access_token: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+        <span class="self">self</span>.config.access_token = <span class="prelude-val">Some</span>(access_token.to_string());
+
+        <span class="self">self
+    </span>}
+
     <span class="doccomment">/// Set client_id of this backend.
     </span><span class="kw">pub fn </span>client_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>, client_id: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="self">self</span>.config.client_id = client_id.to_string();
+        <span class="self">self</span>.config.client_id = <span class="prelude-val">Some</span>(client_id.to_string());
 
         <span class="self">self
     </span>}
 
     <span class="doccomment">/// Set client_secret of this backend.
     </span><span class="kw">pub fn </span>client_secret(<span class="kw-2">&amp;mut </span><span class="self">self</span>, client_secret: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="self">self</span>.config.client_secret = client_secret.to_string();
+        <span class="self">self</span>.config.client_secret = <span class="prelude-val">Some</span>(client_secret.to_string());
 
         <span class="self">self
     </span>}
 
     <span class="doccomment">/// Set refresh_token of this backend.
     </span><span class="kw">pub fn </span>refresh_token(<span class="kw-2">&amp;mut </span><span class="self">self</span>, refresh_token: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="self">self</span>.config.refresh_token = refresh_token.to_string();
+        <span class="self">self</span>.config.refresh_token = <span class="prelude-val">Some</span>(refresh_token.to_string());
 
         <span class="self">self
     </span>}
@@ -629,13 +634,6 @@
     <span class="doccomment">/// Set drive_type of this backend.
     </span><span class="kw">pub fn </span>drive_type(<span class="kw-2">&amp;mut </span><span class="self">self</span>, drive_type: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
         <span class="self">self</span>.config.drive_type = drive_type.to_string();
-
-        <span class="self">self
-    </span>}
-
-    <span class="doccomment">/// Set rapid_upload of this backend.
-    </span><span class="kw">pub fn </span>rapid_upload(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rapid_upload: bool) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="self">self</span>.config.rapid_upload = rapid_upload;
 
         <span class="self">self
     </span>}
@@ -682,32 +680,26 @@
             })<span class="question-mark">?
         </span>};
 
-        <span class="kw">let </span>client_id = <span class="self">self</span>.config.client_id.clone();
-        <span class="kw">if </span>client_id.is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(
-                Error::new(ErrorKind::ConfigInvalid, <span class="string">"client_id is missing."</span>)
+        <span class="kw">let </span>sign = <span class="kw">match </span><span class="self">self</span>.config.access_token.clone() {
+            <span class="prelude-val">Some</span>(access_token) <span class="kw">if </span>!access_token.is_empty() =&gt; {
+                AliyunDriveSign::Access(access_token)
+            }
+            <span class="kw">_ </span>=&gt; <span class="kw">match </span>(
+                <span class="self">self</span>.config.client_id.clone(),
+                <span class="self">self</span>.config.client_secret.clone(),
+                <span class="self">self</span>.config.refresh_token.clone(),
+            ) {
+                (<span class="prelude-val">Some</span>(client_id), <span class="prelude-val">Some</span>(client_secret), <span class="prelude-val">Some</span>(refresh_token)) <span class="kw">if
+                    </span>!client_id.is_empty() &amp;&amp; !client_secret.is_empty() &amp;&amp; !refresh_token.is_empty() =&gt; {
+                    AliyunDriveSign::Refresh(client_id, client_secret, refresh_token, <span class="prelude-val">None</span>, <span class="number">0</span>)
+                }
+                <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        <span class="string">"access_token and a set of client_id, client_secret, and refresh_token are both missing."</span>)
                     .with_operation(<span class="string">"Builder::build"</span>)
-                    .with_context(<span class="string">"service"</span>, Scheme::AliyunDrive),
-            );
-        }
-
-        <span class="kw">let </span>client_secret = <span class="self">self</span>.config.client_secret.clone();
-        <span class="kw">if </span>client_secret.is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(
-                Error::new(ErrorKind::ConfigInvalid, <span class="string">"client_secret is missing."</span>)
-                    .with_operation(<span class="string">"Builder::build"</span>)
-                    .with_context(<span class="string">"service"</span>, Scheme::AliyunDrive),
-            );
-        }
-
-        <span class="kw">let </span>refresh_token = <span class="self">self</span>.config.refresh_token.clone();
-        <span class="kw">if </span>refresh_token.is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(
-                Error::new(ErrorKind::ConfigInvalid, <span class="string">"refresh_token is missing."</span>)
-                    .with_operation(<span class="string">"Builder::build"</span>)
-                    .with_context(<span class="string">"service"</span>, Scheme::AliyunDrive),
-            );
-        }
+                    .with_context(<span class="string">"service"</span>, Scheme::AliyunDrive)),
+            },
+        };
 
         <span class="kw">let </span>drive_type = <span class="kw">match </span><span class="self">self</span>.config.drive_type.as_str() {
             <span class="string">"" </span>| <span class="string">"default" </span>=&gt; DriveType::Default,
@@ -722,24 +714,17 @@
         };
         <span class="macro">debug!</span>(<span class="string">"backend use drive_type {:?}"</span>, drive_type);
 
-        <span class="kw">let </span>rapid_upload = <span class="self">self</span>.config.rapid_upload;
-        <span class="macro">debug!</span>(<span class="string">"backend use rapid_upload {}"</span>, rapid_upload);
-
         <span class="prelude-val">Ok</span>(AliyunDriveBackend {
             core: Arc::new(AliyunDriveCore {
                 endpoint: <span class="string">"https://openapi.alipan.com"</span>.to_string(),
                 root,
-                client_id,
-                client_secret,
                 drive_type,
-                rapid_upload,
                 signer: Arc::new(Mutex::new(AliyunDriveSigner {
                     drive_id: <span class="prelude-val">None</span>,
-                    access_token: <span class="prelude-val">None</span>,
-                    refresh_token,
-                    expire_at: <span class="number">0</span>,
+                    sign,
                 })),
                 client,
+                dir_lock: Arc::new(Mutex::new(())),
             }),
         })
     }
@@ -752,7 +737,7 @@
 
 <span class="kw">impl </span>Access <span class="kw">for </span>AliyunDriveBackend {
     <span class="kw">type </span>Reader = HttpBody;
-    <span class="kw">type </span>Writer = AliyunDriveWriters;
+    <span class="kw">type </span>Writer = AliyunDriveWriter;
     <span class="kw">type </span>Lister = oio::PageLister&lt;AliyunDriveLister&gt;;
     <span class="kw">type </span>BlockingReader = ();
     <span class="kw">type </span>BlockingWriter = ();
@@ -771,7 +756,11 @@
                 <span class="comment">// The min multipart size of AliyunDrive is 100 KiB.
                 </span>write_multi_min_size: <span class="prelude-val">Some</span>(<span class="number">100 </span>* <span class="number">1024</span>),
                 <span class="comment">// The max multipart size of AliyunDrive is 5 GiB.
-                </span>write_multi_max_size: <span class="prelude-val">Some</span>(<span class="number">5 </span>* <span class="number">1024 </span>* <span class="number">1024 </span>* <span class="number">1024</span>),
+                </span>write_multi_max_size: <span class="kw">if </span><span class="macro">cfg!</span>(target_pointer_width = <span class="string">"64"</span>) {
+                    <span class="prelude-val">Some</span>(<span class="number">5 </span>* <span class="number">1024 </span>* <span class="number">1024 </span>* <span class="number">1024</span>)
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">Some</span>(usize::MAX)
+                },
                 delete: <span class="bool-val">true</span>,
                 copy: <span class="bool-val">true</span>,
                 rename: <span class="bool-val">true</span>,
@@ -842,8 +831,8 @@
         </span><span class="kw">let </span>parent_path = get_parent(to);
         <span class="kw">let </span>parent_file_id = <span class="self">self</span>.core.ensure_dir_exists(parent_path).<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="comment">// if from and to are going to be placed in the same folder
-        // copy_path will fail as we cannot change name during this action.
+        <span class="comment">// if from and to are going to be placed in the same folder,
+        // copy_path will fail as we cannot change the name during this action.
         // it has to be auto renamed.
         </span><span class="kw">let </span>auto_rename = file.parent_file_id == parent_file_id;
         <span class="kw">let </span>res = <span class="self">self
@@ -945,8 +934,10 @@
                 <span class="kw">let </span>file: AliyunDriveFile =
                     serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)<span class="question-mark">?</span>;
                 <span class="prelude-val">Some</span>(AliyunDriveParent {
-                    parent_path: path.to_string(),
-                    parent_file_id: file.file_id,
+                    file_id: file.file_id,
+                    name: file.name,
+                    path: path.to_string(),
+                    updated_at: file.updated_at,
                 })
             }
         };
@@ -960,14 +951,21 @@
         <span class="kw">let </span>parent_path = get_parent(path);
         <span class="kw">let </span>parent_file_id = <span class="self">self</span>.core.ensure_dir_exists(parent_path).<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="kw">let </span>executor = args.executor().cloned();
+        <span class="comment">// write can overwrite
+        </span><span class="kw">match </span><span class="self">self</span>.core.get_by_path(path).<span class="kw">await </span>{
+            <span class="prelude-val">Err</span>(err) <span class="kw">if </span>err.kind() == ErrorKind::NotFound =&gt; {}
+            <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(err),
+            <span class="prelude-val">Ok</span>(res) =&gt; {
+                <span class="kw">let </span>file: AliyunDriveFile =
+                    serde_json::from_reader(res.reader()).map_err(new_json_serialize_error)<span class="question-mark">?</span>;
+                <span class="self">self</span>.core.delete_path(<span class="kw-2">&amp;</span>file.file_id).<span class="kw">await</span><span class="question-mark">?</span>;
+            }
+        };
 
         <span class="kw">let </span>writer =
             AliyunDriveWriter::new(<span class="self">self</span>.core.clone(), <span class="kw-2">&amp;</span>parent_file_id, get_basename(path), args);
 
-        <span class="kw">let </span>w = oio::MultipartWriter::new(writer, executor, <span class="number">1</span>);
-
-        <span class="prelude-val">Ok</span>((RpWrite::default(), w))
+        <span class="prelude-val">Ok</span>((RpWrite::default(), writer))
     }
 }
 </code></pre></div></section></main></body></html>

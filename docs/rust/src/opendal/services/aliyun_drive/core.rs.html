@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/services/aliyun_drive/core.rs`."><title>core.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-2c208a72533b4dd0.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="opendal" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (0bf471f33 2024-04-13)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../../opendal/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings">Settings</a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/services/aliyun_drive/core.rs`."><title>core.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="opendal" data-themes="" data-resource-suffix="" data-rustdoc-version="1.81.0-nightly (8337ba918 2024-06-12)" data-channel="nightly" data-search-js="search-0fe7219eb170c82e.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -596,6 +596,25 @@
 <a href="#596" id="596">596</a>
 <a href="#597" id="597">597</a>
 <a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
 </pre></div><pre class="rust"><code><span class="comment">// Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -638,31 +657,33 @@
     </span>Default,
     <span class="doccomment">/// Use the backup type of Aliyun Drive.
     ///
-    /// fallback to the default type if no backup drive found.
+    /// Fallback to the default type if no backup drive is found.
     </span>Backup,
     <span class="doccomment">/// Use the resource type of Aliyun Drive.
     ///
-    /// fallback to the default type if no resource drive found.
+    /// Fallback to the default type if no resource drive is found.
     </span>Resource,
+}
+
+<span class="doccomment">/// Available Aliyun Drive Signer Set
+</span><span class="kw">pub enum </span>AliyunDriveSign {
+    Refresh(String, String, String, <span class="prelude-ty">Option</span>&lt;String&gt;, i64),
+    Access(String),
 }
 
 <span class="kw">pub struct </span>AliyunDriveSigner {
     <span class="kw">pub </span>drive_id: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="kw">pub </span>access_token: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="kw">pub </span>refresh_token: String,
-    <span class="kw">pub </span>expire_at: i64,
+    <span class="kw">pub </span>sign: AliyunDriveSign,
 }
 
 <span class="kw">pub struct </span>AliyunDriveCore {
     <span class="kw">pub </span>endpoint: String,
     <span class="kw">pub </span>root: String,
-    <span class="kw">pub </span>client_id: String,
-    <span class="kw">pub </span>client_secret: String,
     <span class="kw">pub </span>drive_type: DriveType,
-    <span class="kw">pub </span>rapid_upload: bool,
 
     <span class="kw">pub </span>signer: Arc&lt;Mutex&lt;AliyunDriveSigner&gt;&gt;,
     <span class="kw">pub </span>client: HttpClient,
+    <span class="kw">pub </span>dir_lock: Arc&lt;Mutex&lt;()&gt;&gt;,
 }
 
 <span class="kw">impl </span>Debug <span class="kw">for </span>AliyunDriveCore {
@@ -676,6 +697,12 @@
 
 <span class="kw">impl </span>AliyunDriveCore {
     <span class="kw">async fn </span>send(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>req: Request&lt;Buffer&gt;, token: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Buffer&gt; {
+        <span class="comment">// AliyunDrive raise NullPointerException if you haven't set a user-agent.
+        </span>req.headers_mut().insert(
+            header::USER_AGENT,
+            HeaderValue::from_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"opendal/{}"</span>, VERSION))
+                .expect(<span class="string">"user agent must be valid header value"</span>),
+        );
         <span class="kw">if </span>req.method() == Method::POST {
             req.headers_mut().insert(
                 header::CONTENT_TYPE,
@@ -696,12 +723,17 @@
         <span class="prelude-val">Ok</span>(res.into_body())
     }
 
-    <span class="kw">async fn </span>get_access_token(<span class="kw-2">&amp;</span><span class="self">self</span>, refresh_token: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Buffer&gt; {
+    <span class="kw">async fn </span>get_access_token(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        client_id: <span class="kw-2">&amp;</span>str,
+        client_secret: <span class="kw-2">&amp;</span>str,
+        refresh_token: <span class="kw-2">&amp;</span>str,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Buffer&gt; {
         <span class="kw">let </span>body = serde_json::to_vec(<span class="kw-2">&amp;</span>AccessTokenRequest {
             refresh_token,
             grant_type: <span class="string">"refresh_token"</span>,
-            client_id: <span class="kw-2">&amp;</span><span class="self">self</span>.client_id,
-            client_secret: <span class="kw-2">&amp;</span><span class="self">self</span>.client_secret,
+            client_id,
+            client_secret,
         })
         .map_err(new_json_serialize_error)<span class="question-mark">?</span>;
         <span class="kw">let </span>req = Request::post(<span class="macro">format!</span>(<span class="string">"{}/oauth/access_token"</span>, <span class="self">self</span>.endpoint))
@@ -718,17 +750,31 @@
     </span>}
 
     <span class="kw">pub async fn </span>get_token_and_drive(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="prelude-ty">Option</span>&lt;String&gt;, String)&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>tokener = <span class="self">self</span>.signer.lock().<span class="kw">await</span>;
-        <span class="kw">if </span>tokener.expire_at &lt; Utc::now().timestamp() || tokener.access_token.is_none() {
-            <span class="kw">let </span>res = <span class="self">self</span>.get_access_token(<span class="kw-2">&amp;</span>tokener.refresh_token).<span class="kw">await</span><span class="question-mark">?</span>;
-            <span class="kw">let </span>output: RefresTokenResponse =
-                serde_json::from_reader(res.reader()).map_err(new_json_deserialize_error)<span class="question-mark">?</span>;
-            tokener.access_token = <span class="prelude-val">Some</span>(output.access_token);
-            tokener.expire_at = output.expires_in + Utc::now().timestamp();
-            tokener.refresh_token = output.refresh_token;
-        }
-        <span class="kw">let </span><span class="prelude-val">Some</span>(drive_id) = <span class="kw-2">&amp;</span>tokener.drive_id <span class="kw">else </span>{
-            <span class="kw">let </span>res = <span class="self">self</span>.get_drive_id(tokener.access_token.as_deref()).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>signer = <span class="self">self</span>.signer.lock().<span class="kw">await</span>;
+        <span class="kw">let </span>token = <span class="kw">match </span><span class="kw-2">&amp;mut </span>signer.sign {
+            AliyunDriveSign::Access(access_token) =&gt; <span class="prelude-val">Some</span>(access_token.clone()),
+            AliyunDriveSign::Refresh(
+                client_id,
+                client_secret,
+                refresh_token,
+                access_token,
+                expire_at,
+            ) =&gt; {
+                <span class="kw">if </span><span class="kw-2">*</span>expire_at &lt; Utc::now().timestamp() || access_token.is_none() {
+                    <span class="kw">let </span>res = <span class="self">self
+                        </span>.get_access_token(client_id, client_secret, refresh_token)
+                        .<span class="kw">await</span><span class="question-mark">?</span>;
+                    <span class="kw">let </span>output: RefreshTokenResponse = serde_json::from_reader(res.reader())
+                        .map_err(new_json_deserialize_error)<span class="question-mark">?</span>;
+                    <span class="kw-2">*</span>access_token = <span class="prelude-val">Some</span>(output.access_token);
+                    <span class="kw-2">*</span>expire_at = output.expires_in + Utc::now().timestamp();
+                    <span class="kw-2">*</span>refresh_token = output.refresh_token;
+                }
+                access_token.clone()
+            }
+        };
+        <span class="kw">let </span><span class="prelude-val">Some</span>(drive_id) = <span class="kw-2">&amp;</span>signer.drive_id <span class="kw">else </span>{
+            <span class="kw">let </span>res = <span class="self">self</span>.get_drive_id(token.as_deref()).<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="kw">let </span>output: DriveInfoResponse =
                 serde_json::from_reader(res.reader()).map_err(new_json_deserialize_error)<span class="question-mark">?</span>;
             <span class="kw">let </span>drive_id = <span class="kw">match </span><span class="self">self</span>.drive_type {
@@ -736,15 +782,27 @@
                 DriveType::Backup =&gt; output.backup_drive_id.unwrap_or(output.default_drive_id),
                 DriveType::Resource =&gt; output.resource_drive_id.unwrap_or(output.default_drive_id),
             };
-            tokener.drive_id = <span class="prelude-val">Some</span>(drive_id.clone());
-            <span class="kw">return </span><span class="prelude-val">Ok</span>((tokener.access_token.clone(), drive_id));
+            signer.drive_id = <span class="prelude-val">Some</span>(drive_id.clone());
+            <span class="kw">return </span><span class="prelude-val">Ok</span>((token, drive_id));
         };
-        <span class="prelude-val">Ok</span>((tokener.access_token.clone(), drive_id.clone()))
+        <span class="prelude-val">Ok</span>((token, drive_id.clone()))
+    }
+
+    <span class="kw">pub fn </span>build_path(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, rooted: bool) -&gt; String {
+        <span class="kw">let </span>file_path = <span class="kw">if </span>rooted {
+            build_rooted_abs_path(<span class="kw-2">&amp;</span><span class="self">self</span>.root, path)
+        } <span class="kw">else </span>{
+            build_abs_path(<span class="kw-2">&amp;</span><span class="self">self</span>.root, path)
+        };
+        <span class="kw">let </span>file_path = file_path.strip_suffix(<span class="string">'/'</span>).unwrap_or(<span class="kw-2">&amp;</span>file_path);
+        <span class="kw">if </span>file_path.is_empty() {
+            <span class="kw">return </span><span class="string">"/"</span>.to_string();
+        }
+        file_path.to_string()
     }
 
     <span class="kw">pub async fn </span>get_by_path(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Buffer&gt; {
-        <span class="kw">let </span>file_path = build_rooted_abs_path(<span class="kw-2">&amp;</span><span class="self">self</span>.root, path);
-        <span class="kw">let </span>file_path = file_path.strip_suffix(<span class="string">'/'</span>).unwrap_or(<span class="kw-2">&amp;</span>file_path);
+        <span class="kw">let </span>file_path = <span class="self">self</span>.build_path(path, <span class="bool-val">true</span>);
         <span class="kw">let </span>req = Request::post(<span class="macro">format!</span>(
             <span class="string">"{}/adrive/v1.0/openFile/get_by_path"</span>,
             <span class="self">self</span>.endpoint
@@ -752,7 +810,7 @@
         <span class="kw">let </span>(token, drive_id) = <span class="self">self</span>.get_token_and_drive().<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="kw">let </span>body = serde_json::to_vec(<span class="kw-2">&amp;</span>GetByPathRequest {
             drive_id: <span class="kw-2">&amp;</span>drive_id,
-            file_path,
+            file_path: <span class="kw-2">&amp;</span>file_path,
         })
         .map_err(new_json_serialize_error)<span class="question-mark">?</span>;
         <span class="kw">let </span>req = req
@@ -762,7 +820,7 @@
     </span>}
 
     <span class="kw">pub async fn </span>ensure_dir_exists(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String&gt; {
-        <span class="kw">let </span>file_path = build_abs_path(<span class="kw-2">&amp;</span><span class="self">self</span>.root, path.strip_suffix(<span class="string">'/'</span>).unwrap_or(path));
+        <span class="kw">let </span>file_path = <span class="self">self</span>.build_path(path, <span class="bool-val">false</span>);
         <span class="kw">if </span>file_path == <span class="string">"/" </span>{
             <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="string">"root"</span>.to_string());
         }
@@ -770,6 +828,7 @@
         <span class="kw">let </span>paths = file_path.split(<span class="string">'/'</span>).collect::&lt;Vec&lt;<span class="kw-2">&amp;</span>str&gt;&gt;();
         <span class="kw">let </span><span class="kw-2">mut </span>parent: <span class="prelude-ty">Option</span>&lt;String&gt; = <span class="prelude-val">None</span>;
         <span class="kw">for </span>path <span class="kw">in </span>paths {
+            <span class="kw">let </span>_guard = <span class="self">self</span>.dir_lock.lock().<span class="kw">await</span>;
             <span class="kw">let </span>res = <span class="self">self
                 </span>.create(
                     parent.as_deref(),
@@ -1010,7 +1069,7 @@
 }
 
 <span class="attr">#[derive(Debug, Deserialize)]
-</span><span class="kw">pub struct </span>RefresTokenResponse {
+</span><span class="kw">pub struct </span>RefreshTokenResponse {
     <span class="kw">pub </span>access_token: String,
     <span class="kw">pub </span>expires_in: i64,
     <span class="kw">pub </span>refresh_token: String,
@@ -1018,9 +1077,6 @@
 
 <span class="attr">#[derive(Debug, Deserialize)]
 </span><span class="kw">pub struct </span>DriveInfoResponse {
-    <span class="kw">pub </span>user_id: String,
-    <span class="kw">pub </span>name: String,
-    <span class="kw">pub </span>avatar: String,
     <span class="kw">pub </span>default_drive_id: String,
     <span class="kw">pub </span>resource_drive_id: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="kw">pub </span>backup_drive_id: <span class="prelude-ty">Option</span>&lt;String&gt;,
@@ -1042,24 +1098,14 @@
 
 <span class="attr">#[derive(Deserialize)]
 </span><span class="kw">pub struct </span>UploadUrlResponse {
-    <span class="kw">pub </span>drive_id: String,
-    <span class="kw">pub </span>file_id: String,
-    <span class="kw">pub </span>upload_id: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="kw">pub </span>part_info_list: <span class="prelude-ty">Option</span>&lt;Vec&lt;PartInfo&gt;&gt;,
 }
 
 <span class="attr">#[derive(Deserialize)]
 </span><span class="kw">pub struct </span>CreateResponse {
-    <span class="kw">pub </span>drive_id: String,
     <span class="kw">pub </span>file_id: String,
-    <span class="kw">pub </span>status: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="kw">pub </span>parent_file_id: String,
     <span class="kw">pub </span>upload_id: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="kw">pub </span>file_name: String,
-    <span class="kw">pub </span>available: <span class="prelude-ty">Option</span>&lt;bool&gt;,
     <span class="kw">pub </span>exist: <span class="prelude-ty">Option</span>&lt;bool&gt;,
-    <span class="kw">pub </span>rapid_upload: <span class="prelude-ty">Option</span>&lt;bool&gt;,
-    <span class="kw">pub </span>part_info_list: <span class="prelude-ty">Option</span>&lt;Vec&lt;PartInfo&gt;&gt;,
 }
 
 <span class="attr">#[derive(Serialize, Deserialize)]
@@ -1079,32 +1125,24 @@
 
 <span class="attr">#[derive(Deserialize)]
 </span><span class="kw">pub struct </span>CopyResponse {
-    <span class="kw">pub </span>drive_id: String,
     <span class="kw">pub </span>file_id: String,
 }
 
 <span class="attr">#[derive(Deserialize)]
 </span><span class="kw">pub struct </span>AliyunDriveFile {
-    <span class="kw">pub </span>drive_id: String,
     <span class="kw">pub </span>file_id: String,
     <span class="kw">pub </span>parent_file_id: String,
     <span class="kw">pub </span>name: String,
     <span class="kw">pub </span>size: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-    <span class="kw">pub </span>file_extension: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="kw">pub </span>content_hash: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="kw">pub </span>content_type: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="kw">pub </span>category: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="attr">#[serde(rename = <span class="string">"type"</span>)]
     </span><span class="kw">pub </span>path_type: String,
-    <span class="kw">pub </span>created_at: String,
     <span class="kw">pub </span>updated_at: String,
 }
 
 <span class="attr">#[derive(Deserialize)]
 </span><span class="kw">pub struct </span>GetDownloadUrlResponse {
     <span class="kw">pub </span>url: String,
-    <span class="kw">pub </span>expiration: String,
-    <span class="kw">pub </span>method: String,
 }
 
 <span class="attr">#[derive(Serialize)]
