@@ -361,41 +361,6 @@
 <a href="#361" id="361">361</a>
 <a href="#362" id="362">362</a>
 <a href="#363" id="363">363</a>
-<a href="#364" id="364">364</a>
-<a href="#365" id="365">365</a>
-<a href="#366" id="366">366</a>
-<a href="#367" id="367">367</a>
-<a href="#368" id="368">368</a>
-<a href="#369" id="369">369</a>
-<a href="#370" id="370">370</a>
-<a href="#371" id="371">371</a>
-<a href="#372" id="372">372</a>
-<a href="#373" id="373">373</a>
-<a href="#374" id="374">374</a>
-<a href="#375" id="375">375</a>
-<a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a>
-<a href="#378" id="378">378</a>
-<a href="#379" id="379">379</a>
-<a href="#380" id="380">380</a>
-<a href="#381" id="381">381</a>
-<a href="#382" id="382">382</a>
-<a href="#383" id="383">383</a>
-<a href="#384" id="384">384</a>
-<a href="#385" id="385">385</a>
-<a href="#386" id="386">386</a>
-<a href="#387" id="387">387</a>
-<a href="#388" id="388">388</a>
-<a href="#389" id="389">389</a>
-<a href="#390" id="390">390</a>
-<a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
 </pre></div><pre class="rust"><code><span class="comment">// Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -413,12 +378,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-</span><span class="kw">use </span>std::collections::HashMap;
-<span class="kw">use </span>std::fmt::Debug;
+</span><span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::fmt::Formatter;
 <span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span>serde::Deserialize;
 <span class="kw">use </span>surrealdb::engine::any::Any;
 <span class="kw">use </span>surrealdb::opt::auth::Database;
 <span class="kw">use </span>surrealdb::Surreal;
@@ -426,46 +389,17 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::raw::adapters::kv;
 <span class="kw">use </span><span class="kw">crate</span>::raw::normalize_root;
-<span class="kw">use </span><span class="kw">crate</span>::raw::ConfigDeserializer;
-<span class="kw">use </span><span class="kw">crate</span>::Buffer;
-<span class="kw">use </span><span class="kw">crate</span>::Builder;
-<span class="kw">use </span><span class="kw">crate</span>::Capability;
-<span class="kw">use </span><span class="kw">crate</span>::Error;
-<span class="kw">use </span><span class="kw">crate</span>::ErrorKind;
-<span class="kw">use </span><span class="kw">crate</span>::Scheme;
+<span class="kw">use </span><span class="kw">crate</span>::raw::Access;
+<span class="kw">use </span><span class="kw">crate</span>::services::SurrealdbConfig;
+<span class="kw">use crate</span>::<span class="kw-2">*</span>;
 
-<span class="doccomment">/// Config for Surrealdb services support.
-</span><span class="attr">#[derive(Default, Deserialize)]
-#[serde(default)]
-#[non_exhaustive]
-</span><span class="kw">pub struct </span>SurrealdbConfig {
-    connection_string: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    username: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    password: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    namespace: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    database: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    table: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    key_field: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    value_field: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    root: <span class="prelude-ty">Option</span>&lt;String&gt;,
-}
-
-<span class="kw">impl </span>Debug <span class="kw">for </span>SurrealdbConfig {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
-        <span class="kw">let </span><span class="kw-2">mut </span>d = f.debug_struct(<span class="string">"SurrealdbConfig"</span>);
-
-        d.field(<span class="string">"connection_string"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.connection_string)
-            .field(<span class="string">"username"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.username)
-            .field(<span class="string">"password"</span>, <span class="kw-2">&amp;</span><span class="string">"&lt;redacted&gt;"</span>)
-            .field(<span class="string">"namespace"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.namespace)
-            .field(<span class="string">"database"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.database)
-            .field(<span class="string">"table"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.table)
-            .field(<span class="string">"key_field"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.key_field)
-            .field(<span class="string">"value_field"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.value_field)
-            .field(<span class="string">"root"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.root)
-            .finish()
+<span class="kw">impl </span>Configurator <span class="kw">for </span>SurrealdbConfig {
+    <span class="kw">type </span>Builder = SurrealdbBuilder;
+    <span class="kw">fn </span>into_builder(<span class="self">self</span>) -&gt; <span class="self">Self</span>::Builder {
+        SurrealdbBuilder { config: <span class="self">self </span>}
     }
 }
+
 <span class="attr">#[doc = <span class="macro">include_str!</span>(<span class="string">"docs.md"</span>)]
 #[derive(Default)]
 </span><span class="kw">pub struct </span>SurrealdbBuilder {
@@ -491,7 +425,7 @@
     /// - `wss://ip:port`
     /// - `http://ip:port`
     /// - `https://ip:port`
-    </span><span class="kw">pub fn </span>connection_string(<span class="kw-2">&amp;mut </span><span class="self">self</span>, connection_string: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>connection_string(<span class="kw-2">mut </span><span class="self">self</span>, connection_string: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span>!connection_string.is_empty() {
             <span class="self">self</span>.config.connection_string = <span class="prelude-val">Some</span>(connection_string.to_string());
         }
@@ -501,15 +435,18 @@
     <span class="doccomment">/// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
-    </span><span class="kw">pub fn </span>root(<span class="kw-2">&amp;mut </span><span class="self">self</span>, root: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="kw">if </span>!root.is_empty() {
-            <span class="self">self</span>.config.root = <span class="prelude-val">Some</span>(root.to_string());
-        }
+    </span><span class="kw">pub fn </span>root(<span class="kw-2">mut </span><span class="self">self</span>, root: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.config.root = <span class="kw">if </span>root.is_empty() {
+            <span class="prelude-val">None
+        </span>} <span class="kw">else </span>{
+            <span class="prelude-val">Some</span>(root.to_string())
+        };
+
         <span class="self">self
     </span>}
 
     <span class="doccomment">/// Set the table name of the surrealdb service for read/write.
-    </span><span class="kw">pub fn </span>table(<span class="kw-2">&amp;mut </span><span class="self">self</span>, table: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>table(<span class="kw-2">mut </span><span class="self">self</span>, table: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span>!table.is_empty() {
             <span class="self">self</span>.config.table = <span class="prelude-val">Some</span>(table.to_string());
         }
@@ -517,7 +454,7 @@
     </span>}
 
     <span class="doccomment">/// Set the username of the surrealdb service for signin.
-    </span><span class="kw">pub fn </span>username(<span class="kw-2">&amp;mut </span><span class="self">self</span>, username: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>username(<span class="kw-2">mut </span><span class="self">self</span>, username: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span>!username.is_empty() {
             <span class="self">self</span>.config.username = <span class="prelude-val">Some</span>(username.to_string());
         }
@@ -525,7 +462,7 @@
     </span>}
 
     <span class="doccomment">/// Set the password of the surrealdb service for signin.
-    </span><span class="kw">pub fn </span>password(<span class="kw-2">&amp;mut </span><span class="self">self</span>, password: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>password(<span class="kw-2">mut </span><span class="self">self</span>, password: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span>!password.is_empty() {
             <span class="self">self</span>.config.password = <span class="prelude-val">Some</span>(password.to_string());
         }
@@ -533,7 +470,7 @@
     </span>}
 
     <span class="doccomment">/// Set the namespace of the surrealdb service for read/write.
-    </span><span class="kw">pub fn </span>namespace(<span class="kw-2">&amp;mut </span><span class="self">self</span>, namespace: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>namespace(<span class="kw-2">mut </span><span class="self">self</span>, namespace: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span>!namespace.is_empty() {
             <span class="self">self</span>.config.namespace = <span class="prelude-val">Some</span>(namespace.to_string());
         }
@@ -541,7 +478,7 @@
     </span>}
 
     <span class="doccomment">/// Set the database of the surrealdb service for read/write.
-    </span><span class="kw">pub fn </span>database(<span class="kw-2">&amp;mut </span><span class="self">self</span>, database: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>database(<span class="kw-2">mut </span><span class="self">self</span>, database: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span>!database.is_empty() {
             <span class="self">self</span>.config.database = <span class="prelude-val">Some</span>(database.to_string());
         }
@@ -551,7 +488,7 @@
     <span class="doccomment">/// Set the key field name of the surrealdb service for read/write.
     ///
     /// Default to `key` if not specified.
-    </span><span class="kw">pub fn </span>key_field(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key_field: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>key_field(<span class="kw-2">mut </span><span class="self">self</span>, key_field: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span>!key_field.is_empty() {
             <span class="self">self</span>.config.key_field = <span class="prelude-val">Some</span>(key_field.to_string());
         }
@@ -561,7 +498,7 @@
     <span class="doccomment">/// Set the value field name of the surrealdb service for read/write.
     ///
     /// Default to `value` if not specified.
-    </span><span class="kw">pub fn </span>value_field(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value_field: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>value_field(<span class="kw-2">mut </span><span class="self">self</span>, value_field: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span>!value_field.is_empty() {
             <span class="self">self</span>.config.value_field = <span class="prelude-val">Some</span>(value_field.to_string());
         }
@@ -571,16 +508,9 @@
 
 <span class="kw">impl </span>Builder <span class="kw">for </span>SurrealdbBuilder {
     <span class="kw">const </span>SCHEME: Scheme = Scheme::Surrealdb;
-    <span class="kw">type </span>Accessor = SurrealdbBackend;
+    <span class="kw">type </span>Config = SurrealdbConfig;
 
-    <span class="kw">fn </span>from_map(map: HashMap&lt;String, String&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>config = SurrealdbConfig::deserialize(ConfigDeserializer::new(map))
-            .expect(<span class="string">"config deserialize must succeed"</span>);
-
-        SurrealdbBuilder { config }
-    }
-
-    <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw">crate</span>::Result&lt;<span class="self">Self</span>::Accessor&gt; {
+    <span class="kw">fn </span>build(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>Access&gt; {
         <span class="kw">let </span>connection_string = <span class="kw">match </span><span class="self">self</span>.config.connection_string.clone() {
             <span class="prelude-val">Some</span>(v) =&gt; v,
             <span class="prelude-val">None </span>=&gt; {
@@ -644,7 +574,7 @@
             key_field,
             value_field,
         })
-        .with_root(<span class="kw-2">&amp;</span>root))
+        .with_normalized_root(root))
     }
 }
 

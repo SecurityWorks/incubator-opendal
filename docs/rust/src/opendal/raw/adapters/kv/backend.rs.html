@@ -272,6 +272,14 @@
 <a href="#272" id="272">272</a>
 <a href="#273" id="273">273</a>
 <a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
 </pre></div><pre class="rust"><code><span class="comment">// Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -324,8 +332,15 @@
     }
 
     <span class="doccomment">/// Configure root within this backend.
-    </span><span class="kw">pub fn </span>with_root(<span class="kw-2">mut </span><span class="self">self</span>, root: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
-        <span class="self">self</span>.root = normalize_root(root);
+    </span><span class="kw">pub fn </span>with_root(<span class="self">self</span>, root: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.with_normalized_root(normalize_root(root))
+    }
+
+    <span class="doccomment">/// Configure root within this backend.
+    ///
+    /// This method assumes root is normalized.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>with_normalized_root(<span class="kw-2">mut </span><span class="self">self</span>, root: String) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.root = root;
         <span class="self">self
     </span>}
 }
@@ -338,7 +353,7 @@
     <span class="kw">type </span>Lister = HierarchyLister&lt;KvLister&gt;;
     <span class="kw">type </span>BlockingLister = HierarchyLister&lt;KvLister&gt;;
 
-    <span class="kw">fn </span>info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; AccessorInfo {
+    <span class="kw">fn </span>info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;AccessorInfo&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>am: AccessorInfo = <span class="self">self</span>.kv.metadata().into();
         am.set_root(<span class="kw-2">&amp;</span><span class="self">self</span>.root);
 
@@ -358,7 +373,7 @@
 
         am.set_native_capability(cap);
 
-        am
+        am.into()
     }
 
     <span class="kw">async fn </span>read(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpRead) -&gt; <span class="prelude-ty">Result</span>&lt;(RpRead, <span class="self">Self</span>::Reader)&gt; {
@@ -476,8 +491,11 @@
             } <span class="kw">else </span>{
                 EntryMode::FILE
             };
-
-            oio::Entry::new(<span class="kw-2">&amp;</span>build_rel_path(<span class="kw-2">&amp;</span><span class="self">self</span>.root, <span class="kw-2">&amp;</span>v), Metadata::new(mode))
+            <span class="kw">let </span><span class="kw-2">mut </span>path = build_rel_path(<span class="kw-2">&amp;</span><span class="self">self</span>.root, <span class="kw-2">&amp;</span>v);
+            <span class="kw">if </span>path.is_empty() {
+                path = <span class="string">"/"</span>.to_string();
+            }
+            oio::Entry::new(<span class="kw-2">&amp;</span>path, Metadata::new(mode))
         })
     }
 }
@@ -516,10 +534,9 @@
 </span><span class="kw">unsafe impl</span>&lt;S: Adapter&gt; Sync <span class="kw">for </span>KvWriter&lt;S&gt; {}
 
 <span class="kw">impl</span>&lt;S: Adapter&gt; oio::Write <span class="kw">for </span>KvWriter&lt;S&gt; {
-    <span class="kw">async fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Buffer) -&gt; <span class="prelude-ty">Result</span>&lt;usize&gt; {
-        <span class="kw">let </span>ret = bs.len();
+    <span class="kw">async fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Buffer) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
         <span class="self">self</span>.buffer.push(bs);
-        <span class="prelude-val">Ok</span>(ret)
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">async fn </span>close(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
@@ -534,10 +551,9 @@
 }
 
 <span class="kw">impl</span>&lt;S: Adapter&gt; oio::BlockingWrite <span class="kw">for </span>KvWriter&lt;S&gt; {
-    <span class="kw">fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Buffer) -&gt; <span class="prelude-ty">Result</span>&lt;usize&gt; {
-        <span class="kw">let </span>ret = bs.len();
+    <span class="kw">fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Buffer) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
         <span class="self">self</span>.buffer.push(bs);
-        <span class="prelude-val">Ok</span>(ret)
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn </span>close(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {

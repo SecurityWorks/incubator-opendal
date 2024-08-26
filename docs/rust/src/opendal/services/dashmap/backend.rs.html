@@ -155,6 +155,7 @@
 <a href="#155" id="155">155</a>
 <a href="#156" id="156">156</a>
 <a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
 </pre></div><pre class="rust"><code><span class="comment">// Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -172,21 +173,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-</span><span class="kw">use </span>std::collections::HashMap;
-<span class="kw">use </span>std::fmt::Debug;
+</span><span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::fmt::Formatter;
 
 <span class="kw">use </span>dashmap::DashMap;
-<span class="kw">use </span>serde::Deserialize;
 
 <span class="kw">use </span><span class="kw">crate</span>::raw::adapters::typed_kv;
-<span class="kw">use </span><span class="kw">crate</span>::raw::ConfigDeserializer;
+<span class="kw">use </span><span class="kw">crate</span>::raw::Access;
+<span class="kw">use </span><span class="kw">crate</span>::services::DashmapConfig;
 <span class="kw">use crate</span>::<span class="kw-2">*</span>;
 
-<span class="doccomment">/// [dashmap](https://github.com/xacrimon/dashmap) backend support.
-</span><span class="attr">#[derive(Default, Deserialize, Clone, Debug)]
-</span><span class="kw">pub struct </span>DashmapConfig {
-    root: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<span class="kw">impl </span>Configurator <span class="kw">for </span>DashmapConfig {
+    <span class="kw">type </span>Builder = DashmapBuilder;
+    <span class="kw">fn </span>into_builder(<span class="self">self</span>) -&gt; <span class="self">Self</span>::Builder {
+        DashmapBuilder { config: <span class="self">self </span>}
+    }
 }
 
 <span class="doccomment">/// [dashmap](https://github.com/xacrimon/dashmap) backend support.
@@ -198,28 +199,30 @@
 
 <span class="kw">impl </span>DashmapBuilder {
     <span class="doccomment">/// Set the root for dashmap.
-    </span><span class="kw">pub fn </span>root(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="self">self</span>.config.root = <span class="prelude-val">Some</span>(path.into());
+    </span><span class="kw">pub fn </span>root(<span class="kw-2">mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.config.root = <span class="kw">if </span>path.is_empty() {
+            <span class="prelude-val">None
+        </span>} <span class="kw">else </span>{
+            <span class="prelude-val">Some</span>(path.to_string())
+        };
+
         <span class="self">self
     </span>}
 }
 
 <span class="kw">impl </span>Builder <span class="kw">for </span>DashmapBuilder {
     <span class="kw">const </span>SCHEME: Scheme = Scheme::Dashmap;
-    <span class="kw">type </span>Accessor = DashmapBackend;
+    <span class="kw">type </span>Config = DashmapConfig;
 
-    <span class="kw">fn </span>from_map(map: HashMap&lt;String, String&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>config = DashmapConfig::deserialize(ConfigDeserializer::new(map))
-            .expect(<span class="string">"config deserialize must succeed"</span>);
-
-        <span class="self">Self </span>{ config }
-    }
-
-    <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Accessor&gt; {
-        <span class="prelude-val">Ok</span>(DashmapBackend::new(Adapter {
+    <span class="kw">fn </span>build(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>Access&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>backend = DashmapBackend::new(Adapter {
             inner: DashMap::default(),
-        })
-        .with_root(<span class="self">self</span>.config.root.as_deref().unwrap_or_default()))
+        });
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(v) = <span class="self">self</span>.config.root {
+            backend = backend.with_root(<span class="kw-2">&amp;</span>v);
+        }
+
+        <span class="prelude-val">Ok</span>(backend)
     }
 }
 
@@ -293,7 +296,7 @@
         <span class="kw">if </span>path.is_empty() {
             <span class="prelude-val">Ok</span>(keys.collect())
         } <span class="kw">else </span>{
-            <span class="prelude-val">Ok</span>(keys.filter(|k| k.starts_with(path) &amp;&amp; k != path).collect())
+            <span class="prelude-val">Ok</span>(keys.filter(|k| k.starts_with(path)).collect())
         }
     }
 }
@@ -301,7 +304,6 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use </span><span class="kw">crate</span>::raw::<span class="kw-2">*</span>;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_accessor_metadata_name() {

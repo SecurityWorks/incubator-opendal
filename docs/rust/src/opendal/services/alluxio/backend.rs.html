@@ -250,47 +250,6 @@
 <a href="#250" id="250">250</a>
 <a href="#251" id="251">251</a>
 <a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
-<a href="#254" id="254">254</a>
-<a href="#255" id="255">255</a>
-<a href="#256" id="256">256</a>
-<a href="#257" id="257">257</a>
-<a href="#258" id="258">258</a>
-<a href="#259" id="259">259</a>
-<a href="#260" id="260">260</a>
-<a href="#261" id="261">261</a>
-<a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
-<a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a>
-<a href="#283" id="283">283</a>
-<a href="#284" id="284">284</a>
-<a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a>
-<a href="#287" id="287">287</a>
-<a href="#288" id="288">288</a>
-<a href="#289" id="289">289</a>
-<a href="#290" id="290">290</a>
-<a href="#291" id="291">291</a>
-<a href="#292" id="292">292</a>
-<a href="#293" id="293">293</a>
 </pre></div><pre class="rust"><code><span class="comment">// Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -308,14 +267,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-</span><span class="kw">use </span>std::collections::HashMap;
-<span class="kw">use </span>std::fmt::Debug;
+</span><span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::fmt::Formatter;
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>http::Response;
 <span class="kw">use </span>log::debug;
-<span class="kw">use </span>serde::Deserialize;
 
 <span class="kw">use </span><span class="kw">super</span>::core::AlluxioCore;
 <span class="kw">use </span><span class="kw">super</span>::error::parse_error;
@@ -323,33 +280,16 @@
 <span class="kw">use </span><span class="kw">super</span>::writer::AlluxioWriter;
 <span class="kw">use </span><span class="kw">super</span>::writer::AlluxioWriters;
 <span class="kw">use </span><span class="kw">crate</span>::raw::<span class="kw-2">*</span>;
+<span class="kw">use </span><span class="kw">crate</span>::services::AlluxioConfig;
 <span class="kw">use crate</span>::<span class="kw-2">*</span>;
 
-<span class="doccomment">/// Config for alluxio services support.
-</span><span class="attr">#[derive(Default, Deserialize)]
-#[serde(default)]
-#[non_exhaustive]
-</span><span class="kw">pub struct </span>AlluxioConfig {
-    <span class="doccomment">/// root of this backend.
-    ///
-    /// All operations will happen under this root.
-    ///
-    /// default to `/` if not set.
-    </span><span class="kw">pub </span>root: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="doccomment">/// endpoint of this backend.
-    ///
-    /// Endpoint must be full uri, mostly like `http://127.0.0.1:39999`.
-    </span><span class="kw">pub </span>endpoint: <span class="prelude-ty">Option</span>&lt;String&gt;,
-}
-
-<span class="kw">impl </span>Debug <span class="kw">for </span>AlluxioConfig {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
-        <span class="kw">let </span><span class="kw-2">mut </span>d = f.debug_struct(<span class="string">"AlluxioConfig"</span>);
-
-        d.field(<span class="string">"root"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.root)
-            .field(<span class="string">"endpoint"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.endpoint);
-
-        d.finish_non_exhaustive()
+<span class="kw">impl </span>Configurator <span class="kw">for </span>AlluxioConfig {
+    <span class="kw">type </span>Builder = AlluxioBuilder;
+    <span class="kw">fn </span>into_builder(<span class="self">self</span>) -&gt; <span class="self">Self</span>::Builder {
+        AlluxioBuilder {
+            config: <span class="self">self</span>,
+            http_client: <span class="prelude-val">None</span>,
+        }
     }
 }
 
@@ -375,7 +315,7 @@
     <span class="doccomment">/// Set root of this backend.
     ///
     /// All operations will happen under this root.
-    </span><span class="kw">pub fn </span>root(<span class="kw-2">&amp;mut </span><span class="self">self</span>, root: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>root(<span class="kw-2">mut </span><span class="self">self</span>, root: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="self">self</span>.config.root = <span class="kw">if </span>root.is_empty() {
             <span class="prelude-val">None
         </span>} <span class="kw">else </span>{
@@ -388,7 +328,7 @@
     <span class="doccomment">/// endpoint of this backend.
     ///
     /// Endpoint must be full uri, mostly like `http://127.0.0.1:39999`.
-    </span><span class="kw">pub fn </span>endpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, endpoint: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>endpoint(<span class="kw-2">mut </span><span class="self">self</span>, endpoint: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span>!endpoint.is_empty() {
             <span class="comment">// Trim trailing `/` so that we can accept `http://127.0.0.1:39999/`
             </span><span class="self">self</span>.config.endpoint = <span class="prelude-val">Some</span>(endpoint.trim_end_matches(<span class="string">'/'</span>).to_string())
@@ -403,7 +343,7 @@
     ///
     /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
     /// during minor updates.
-    </span><span class="kw">pub fn </span>http_client(<span class="kw-2">&amp;mut </span><span class="self">self</span>, client: HttpClient) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>http_client(<span class="kw-2">mut </span><span class="self">self</span>, client: HttpClient) -&gt; <span class="self">Self </span>{
         <span class="self">self</span>.http_client = <span class="prelude-val">Some</span>(client);
         <span class="self">self
     </span>}
@@ -411,31 +351,10 @@
 
 <span class="kw">impl </span>Builder <span class="kw">for </span>AlluxioBuilder {
     <span class="kw">const </span>SCHEME: Scheme = Scheme::Alluxio;
-    <span class="kw">type </span>Accessor = AlluxioBackend;
-
-    <span class="doccomment">/// Converts a HashMap into an AlluxioBuilder instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `map` - A HashMap containing the configuration values.
-    ///
-    /// # Returns
-    ///
-    /// Returns an instance of AlluxioBuilder.
-    </span><span class="kw">fn </span>from_map(map: HashMap&lt;String, String&gt;) -&gt; <span class="self">Self </span>{
-        <span class="comment">// Deserialize the configuration from the HashMap.
-        </span><span class="kw">let </span>config = AlluxioConfig::deserialize(ConfigDeserializer::new(map))
-            .expect(<span class="string">"config deserialize must succeed"</span>);
-
-        <span class="comment">// Create an AlluxioBuilder instance with the deserialized config.
-        </span>AlluxioBuilder {
-            config,
-            http_client: <span class="prelude-val">None</span>,
-        }
-    }
+    <span class="kw">type </span>Config = AlluxioConfig;
 
     <span class="doccomment">/// Builds the backend and returns the result of AlluxioBackend.
-    </span><span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Accessor&gt; {
+    </span><span class="kw">fn </span>build(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>Access&gt; {
         <span class="macro">debug!</span>(<span class="string">"backend build started: {:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>);
 
         <span class="kw">let </span>root = normalize_root(<span class="kw-2">&amp;</span><span class="self">self</span>.config.root.clone().unwrap_or_default());
@@ -449,7 +368,7 @@
         }<span class="question-mark">?</span>;
         <span class="macro">debug!</span>(<span class="string">"backend use endpoint {}"</span>, <span class="kw-2">&amp;</span>endpoint);
 
-        <span class="kw">let </span>client = <span class="kw">if let </span><span class="prelude-val">Some</span>(client) = <span class="self">self</span>.http_client.take() {
+        <span class="kw">let </span>client = <span class="kw">if let </span><span class="prelude-val">Some</span>(client) = <span class="self">self</span>.http_client {
             client
         } <span class="kw">else </span>{
             HttpClient::new().map_err(|err| {
@@ -481,7 +400,7 @@
     <span class="kw">type </span>BlockingWriter = ();
     <span class="kw">type </span>BlockingLister = ();
 
-    <span class="kw">fn </span>info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; AccessorInfo {
+    <span class="kw">fn </span>info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;AccessorInfo&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>am = AccessorInfo::default();
         am.set_scheme(Scheme::Alluxio)
             .set_root(<span class="kw-2">&amp;</span><span class="self">self</span>.core.root)
@@ -505,7 +424,7 @@
                 ..Default::default()
             });
 
-        am
+        am.into()
     }
 
     <span class="kw">async fn </span>create_dir(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, <span class="kw">_</span>: OpCreateDir) -&gt; <span class="prelude-ty">Result</span>&lt;RpCreateDir&gt; {
@@ -557,6 +476,8 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>test {
+    <span class="kw">use </span>std::collections::HashMap;
+
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[test]
@@ -565,21 +486,18 @@
         map.insert(<span class="string">"root"</span>.to_string(), <span class="string">"/"</span>.to_string());
         map.insert(<span class="string">"endpoint"</span>.to_string(), <span class="string">"http://127.0.0.1:39999"</span>.to_string());
 
-        <span class="kw">let </span>builder = AlluxioBuilder::from_map(map);
+        <span class="kw">let </span>builder = AlluxioConfig::from_iter(map).unwrap();
 
-        <span class="macro">assert_eq!</span>(builder.config.root, <span class="prelude-val">Some</span>(<span class="string">"/"</span>.to_string()));
-        <span class="macro">assert_eq!</span>(
-            builder.config.endpoint,
-            <span class="prelude-val">Some</span>(<span class="string">"http://127.0.0.1:39999"</span>.to_string())
-        );
+        <span class="macro">assert_eq!</span>(builder.root, <span class="prelude-val">Some</span>(<span class="string">"/"</span>.to_string()));
+        <span class="macro">assert_eq!</span>(builder.endpoint, <span class="prelude-val">Some</span>(<span class="string">"http://127.0.0.1:39999"</span>.to_string()));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_builder_build() {
-        <span class="kw">let </span><span class="kw-2">mut </span>builder = AlluxioBuilder::default();
-        builder.root(<span class="string">"/root"</span>).endpoint(<span class="string">"http://127.0.0.1:39999"</span>);
-
-        <span class="kw">let </span>builder = builder.build();
+        <span class="kw">let </span>builder = AlluxioBuilder::default()
+            .root(<span class="string">"/root"</span>)
+            .endpoint(<span class="string">"http://127.0.0.1:39999"</span>)
+            .build();
 
         <span class="macro">assert!</span>(builder.is_ok());
     }

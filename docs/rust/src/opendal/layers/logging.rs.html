@@ -1351,21 +1351,6 @@
 <a href="#1351" id="1351">1351</a>
 <a href="#1352" id="1352">1352</a>
 <a href="#1353" id="1353">1353</a>
-<a href="#1354" id="1354">1354</a>
-<a href="#1355" id="1355">1355</a>
-<a href="#1356" id="1356">1356</a>
-<a href="#1357" id="1357">1357</a>
-<a href="#1358" id="1358">1358</a>
-<a href="#1359" id="1359">1359</a>
-<a href="#1360" id="1360">1360</a>
-<a href="#1361" id="1361">1361</a>
-<a href="#1362" id="1362">1362</a>
-<a href="#1363" id="1363">1363</a>
-<a href="#1364" id="1364">1364</a>
-<a href="#1365" id="1365">1365</a>
-<a href="#1366" id="1366">1366</a>
-<a href="#1367" id="1367">1367</a>
-<a href="#1368" id="1368">1368</a>
 </pre></div><pre class="rust"><code><span class="comment">// Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -1384,40 +1369,29 @@
 // under the License.
 
 </span><span class="kw">use </span>std::fmt::Debug;
-<span class="kw">use </span>std::sync::atomic::AtomicU64;
-<span class="kw">use </span>std::sync::atomic::Ordering;
+<span class="kw">use </span>std::fmt::Display;
+<span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span>bytes::Buf;
 <span class="kw">use </span>futures::FutureExt;
 <span class="kw">use </span>futures::TryFutureExt;
-<span class="kw">use </span>log::debug;
 <span class="kw">use </span>log::log;
-<span class="kw">use </span>log::trace;
 <span class="kw">use </span>log::Level;
 
-<span class="kw">use </span><span class="kw">crate</span>::raw::oio::ReadOperation;
-<span class="kw">use </span><span class="kw">crate</span>::raw::oio::WriteOperation;
 <span class="kw">use </span><span class="kw">crate</span>::raw::<span class="kw-2">*</span>;
 <span class="kw">use crate</span>::<span class="kw-2">*</span>;
 
-<span class="doccomment">/// Add [log](https://docs.rs/log/) for every operations.
+<span class="doccomment">/// Add [log](https://docs.rs/log/) for every operation.
 ///
 /// # Logging
 ///
 /// - OpenDAL will log in structural way.
 /// - Every operation will start with a `started` log entry.
 /// - Every operation will finish with the following status:
-///   - `finished`: the operation is successful.
-///   - `errored`: the operation returns an expected error like `NotFound`.
+///   - `succeeded`: the operation is successful, but might have more to take.
+///   - `finished`: the whole operation is finished.
 ///   - `failed`: the operation returns an unexpected error.
 /// - The default log level while expected error happened is `Warn`.
 /// - The default log level while unexpected failure happened is `Error`.
-///
-/// # Todo
-///
-/// We should migrate to log's kv api after it's ready.
-///
-/// Tracking issue: &lt;https://github.com/rust-lang/log/issues/328&gt;
 ///
 /// # Examples
 ///
@@ -1449,476 +1423,485 @@
 /// ```shell
 /// RUST_LOG="info,opendal::services=debug" ./app
 /// ```
-</span><span class="attr">#[derive(Debug, Copy, Clone)]
-</span><span class="kw">pub struct </span>LoggingLayer {
-    error_level: <span class="prelude-ty">Option</span>&lt;Level&gt;,
-    failure_level: <span class="prelude-ty">Option</span>&lt;Level&gt;,
-    backtrace_output: bool,
+///
+/// # Logging Interceptor
+///
+/// You can implement your own logging interceptor to customize the logging behavior.
+///
+/// ```no_run
+/// use opendal::layers::LoggingInterceptor;
+/// use opendal::layers::LoggingLayer;
+/// use opendal::raw;
+/// use opendal::services;
+/// use opendal::Error;
+/// use opendal::Operator;
+/// use opendal::Scheme;
+///
+/// #[derive(Debug, Clone)]
+/// struct MyLoggingInterceptor;
+///
+/// impl LoggingInterceptor for MyLoggingInterceptor {
+///     fn log(
+///         &amp;self,
+///         info: &amp;raw::AccessorInfo,
+///         operation: raw::Operation,
+///         context: &amp;[(&amp;str, &amp;str)],
+///         message: &amp;str,
+///         err: Option&lt;&amp;Error&gt;,
+///     ) {
+///         // log something
+///     }
+/// }
+///
+/// let _ = Operator::new(services::Memory::default())
+///     .expect("must init")
+///     .layer(LoggingLayer::new(MyLoggingInterceptor))
+///     .finish();
+/// ```
+</span><span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>LoggingLayer&lt;I = DefaultLoggingInterceptor&gt; {
+    logger: I,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>LoggingLayer {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            error_level: <span class="prelude-val">Some</span>(Level::Warn),
-            failure_level: <span class="prelude-val">Some</span>(Level::Error),
-            backtrace_output: <span class="bool-val">false</span>,
+            logger: DefaultLoggingInterceptor,
         }
     }
 }
 
 <span class="kw">impl </span>LoggingLayer {
-    <span class="doccomment">/// Setting the log level while expected error happened.
-    ///
-    /// For example: accessor returns NotFound.
-    ///
-    /// `None` means disable the log for error.
-    </span><span class="kw">pub fn </span>with_error_level(<span class="kw-2">mut </span><span class="self">self</span>, level: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(level_str) = level {
-            <span class="kw">let </span>level = level_str.parse().map_err(|<span class="kw">_</span>| {
-                Error::new(ErrorKind::ConfigInvalid, <span class="string">"invalid log level"</span>)
-                    .with_context(<span class="string">"level"</span>, level_str)
-            })<span class="question-mark">?</span>;
-            <span class="self">self</span>.error_level = <span class="prelude-val">Some</span>(level);
-        } <span class="kw">else </span>{
-            <span class="self">self</span>.error_level = <span class="prelude-val">None</span>;
-        }
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>)
+    <span class="doccomment">/// Create the layer with specific logging interceptor.
+    </span><span class="kw">pub fn </span>new&lt;I: LoggingInterceptor&gt;(logger: I) -&gt; LoggingLayer&lt;I&gt; {
+        LoggingLayer { logger }
     }
-
-    <span class="doccomment">/// Setting the log level while unexpected failure happened.
-    ///
-    /// For example: accessor returns Unexpected network error.
-    ///
-    /// `None` means disable the log for failure.
-    </span><span class="kw">pub fn </span>with_failure_level(<span class="kw-2">mut </span><span class="self">self</span>, level: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(level_str) = level {
-            <span class="kw">let </span>level = level_str.parse().map_err(|<span class="kw">_</span>| {
-                Error::new(ErrorKind::ConfigInvalid, <span class="string">"invalid log level"</span>)
-                    .with_context(<span class="string">"level"</span>, level_str)
-            })<span class="question-mark">?</span>;
-            <span class="self">self</span>.failure_level = <span class="prelude-val">Some</span>(level);
-        } <span class="kw">else </span>{
-            <span class="self">self</span>.failure_level = <span class="prelude-val">None</span>;
-        }
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>)
-    }
-
-    <span class="doccomment">/// Setting whether to output backtrace while unexpected failure happened.
-    ///
-    /// # Notes
-    ///
-    /// - When the error is an expected error, backtrace will not be output.
-    /// - backtrace output is disable by default.
-    </span><span class="kw">pub fn </span>with_backtrace_output(<span class="kw-2">mut </span><span class="self">self</span>, enable: bool) -&gt; <span class="self">Self </span>{
-        <span class="self">self</span>.backtrace_output = enable;
-        <span class="self">self
-    </span>}
 }
 
-<span class="kw">impl</span>&lt;A: Access&gt; Layer&lt;A&gt; <span class="kw">for </span>LoggingLayer {
-    <span class="kw">type </span>LayeredAccess = LoggingAccessor&lt;A&gt;;
+<span class="kw">impl</span>&lt;A: Access, I: LoggingInterceptor&gt; Layer&lt;A&gt; <span class="kw">for </span>LoggingLayer&lt;I&gt; {
+    <span class="kw">type </span>LayeredAccess = LoggingAccessor&lt;A, I&gt;;
 
     <span class="kw">fn </span>layer(<span class="kw-2">&amp;</span><span class="self">self</span>, inner: A) -&gt; <span class="self">Self</span>::LayeredAccess {
-        <span class="kw">let </span>meta = inner.info();
+        <span class="kw">let </span>info = inner.info();
         LoggingAccessor {
             inner,
 
-            ctx: LoggingContext {
-                scheme: meta.scheme(),
-                error_level: <span class="self">self</span>.error_level,
-                failure_level: <span class="self">self</span>.failure_level,
-                backtrace_output: <span class="self">self</span>.backtrace_output,
-            },
+            info,
+            logger: <span class="self">self</span>.logger.clone(),
         }
     }
 }
 
-<span class="attr">#[derive(Clone, Debug)]
-</span><span class="kw">pub struct </span>LoggingContext {
-    scheme: Scheme,
-    error_level: <span class="prelude-ty">Option</span>&lt;Level&gt;,
-    failure_level: <span class="prelude-ty">Option</span>&lt;Level&gt;,
-    backtrace_output: bool,
+<span class="doccomment">/// LoggingInterceptor is used to intercept the log.
+</span><span class="kw">pub trait </span>LoggingInterceptor: Debug + Clone + Send + Sync + Unpin + <span class="lifetime">'static </span>{
+    <span class="doccomment">/// Everytime there is a log, this function will be called.
+    ///
+    /// # Inputs
+    ///
+    /// - info: The service's access info.
+    /// - operation: The operation to log.
+    /// - context: Additional context of the log like path, etc.
+    /// - message: The log message.
+    /// - err: The error to log.
+    ///
+    /// # Note
+    ///
+    /// Users should avoid calling resource-intensive operations such as I/O or network
+    /// functions here, especially anything that takes longer than 10ms. Otherwise, Opendal
+    /// could perform unexpectedly slow.
+    </span><span class="kw">fn </span>log(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        info: <span class="kw-2">&amp;</span>AccessorInfo,
+        operation: Operation,
+        context: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str)],
+        message: <span class="kw-2">&amp;</span>str,
+        err: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Error&gt;,
+    );
 }
 
-<span class="kw">impl </span>LoggingContext {
+<span class="doccomment">/// The DefaultLoggingInterceptor will log the message by the standard logging macro.
+</span><span class="attr">#[derive(Debug, Copy, Clone, Default)]
+</span><span class="kw">pub struct </span>DefaultLoggingInterceptor;
+
+<span class="kw">impl </span>LoggingInterceptor <span class="kw">for </span>DefaultLoggingInterceptor {
     <span class="attr">#[inline]
-    </span><span class="kw">fn </span>error_level(<span class="kw-2">&amp;</span><span class="self">self</span>, err: <span class="kw-2">&amp;</span>Error) -&gt; <span class="prelude-ty">Option</span>&lt;Level&gt; {
-        <span class="kw">if </span>err.kind() == ErrorKind::Unexpected {
-            <span class="self">self</span>.failure_level
-        } <span class="kw">else </span>{
-            <span class="self">self</span>.error_level
+    </span><span class="kw">fn </span>log(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        info: <span class="kw-2">&amp;</span>AccessorInfo,
+        operation: Operation,
+        context: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str)],
+        message: <span class="kw-2">&amp;</span>str,
+        err: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Error&gt;,
+    ) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(err) = err {
+            <span class="comment">// Print error if it's unexpected, otherwise in warn.
+            </span><span class="kw">let </span>lvl = <span class="kw">if </span>err.kind() == ErrorKind::Unexpected {
+                Level::Error
+            } <span class="kw">else </span>{
+                Level::Warn
+            };
+
+            <span class="macro">log!</span>(
+                target: LOGGING_TARGET,
+                lvl,
+                <span class="string">"service={} name={} {}: {operation} {message} {}"</span>,
+                info.scheme(),
+                info.name(),
+                LoggingContext(context),
+                <span class="comment">// Print error message with debug output while unexpected happened.
+                //
+                // It's super sad that we can't bind `format_args!()` here.
+                // See: https://github.com/rust-lang/rust/issues/92698
+                </span><span class="kw">if </span>err.kind() != ErrorKind::Unexpected {
+                   <span class="macro">format!</span>(<span class="string">"{err}"</span>)
+                } <span class="kw">else </span>{
+                   <span class="macro">format!</span>(<span class="string">"{err:?}"</span>)
+                }
+            );
         }
+
+        <span class="comment">// Print debug message if operation is oneshot, otherwise in trace.
+        </span><span class="kw">let </span>lvl = <span class="kw">if </span>operation.is_oneshot() {
+            Level::Debug
+        } <span class="kw">else </span>{
+            Level::Trace
+        };
+
+        <span class="macro">log!</span>(
+            target: LOGGING_TARGET,
+            lvl,
+            <span class="string">"service={} name={} {}: {operation} {message}"</span>,
+            info.scheme(),
+            info.name(),
+            LoggingContext(context),
+        );
     }
+}
 
-    <span class="doccomment">/// Print error with backtrace if it's unexpected error.
-    </span><span class="attr">#[inline]
-    </span><span class="kw">fn </span>error_print(<span class="kw-2">&amp;</span><span class="self">self</span>, err: <span class="kw-2">&amp;</span>Error) -&gt; String {
-        <span class="comment">// Don't print backtrace if it's not unexpected error.
-        </span><span class="kw">if </span>err.kind() != ErrorKind::Unexpected {
-            <span class="kw">return </span><span class="macro">format!</span>(<span class="string">"{err}"</span>);
-        }
+<span class="kw">struct </span>LoggingContext&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str)]);
 
-        <span class="kw">if </span><span class="self">self</span>.backtrace_output {
-            <span class="macro">format!</span>(<span class="string">"{err:?}"</span>)
-        } <span class="kw">else </span>{
-            <span class="macro">format!</span>(<span class="string">"{err}"</span>)
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Display <span class="kw">for </span>LoggingContext&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
+        <span class="kw">for </span>(i, (k, v)) <span class="kw">in </span><span class="self">self</span>.<span class="number">0</span>.iter().enumerate() {
+            <span class="kw">if </span>i &gt; <span class="number">0 </span>{
+                <span class="macro">write!</span>(f, <span class="string">" {}={}"</span>, k, v)<span class="question-mark">?</span>;
+            } <span class="kw">else </span>{
+                <span class="macro">write!</span>(f, <span class="string">"{}={}"</span>, k, v)<span class="question-mark">?</span>;
+            }
         }
+        <span class="prelude-val">Ok</span>(())
     }
 }
 
 <span class="attr">#[derive(Clone, Debug)]
-</span><span class="kw">pub struct </span>LoggingAccessor&lt;A: Access&gt; {
+</span><span class="kw">pub struct </span>LoggingAccessor&lt;A: Access, I: LoggingInterceptor&gt; {
     inner: A,
 
-    ctx: LoggingContext,
+    info: Arc&lt;AccessorInfo&gt;,
+    logger: I,
 }
 
 <span class="kw">static </span>LOGGING_TARGET: <span class="kw-2">&amp;</span>str = <span class="string">"opendal::services"</span>;
 
-<span class="kw">impl</span>&lt;A: Access&gt; LayeredAccess <span class="kw">for </span>LoggingAccessor&lt;A&gt; {
+<span class="kw">impl</span>&lt;A: Access, I: LoggingInterceptor&gt; LayeredAccess <span class="kw">for </span>LoggingAccessor&lt;A, I&gt; {
     <span class="kw">type </span>Inner = A;
-    <span class="kw">type </span>Reader = LoggingReader&lt;A::Reader&gt;;
-    <span class="kw">type </span>BlockingReader = LoggingReader&lt;A::BlockingReader&gt;;
-    <span class="kw">type </span>Writer = LoggingWriter&lt;A::Writer&gt;;
-    <span class="kw">type </span>BlockingWriter = LoggingWriter&lt;A::BlockingWriter&gt;;
-    <span class="kw">type </span>Lister = LoggingLister&lt;A::Lister&gt;;
-    <span class="kw">type </span>BlockingLister = LoggingLister&lt;A::BlockingLister&gt;;
+    <span class="kw">type </span>Reader = LoggingReader&lt;A::Reader, I&gt;;
+    <span class="kw">type </span>BlockingReader = LoggingReader&lt;A::BlockingReader, I&gt;;
+    <span class="kw">type </span>Writer = LoggingWriter&lt;A::Writer, I&gt;;
+    <span class="kw">type </span>BlockingWriter = LoggingWriter&lt;A::BlockingWriter, I&gt;;
+    <span class="kw">type </span>Lister = LoggingLister&lt;A::Lister, I&gt;;
+    <span class="kw">type </span>BlockingLister = LoggingLister&lt;A::BlockingLister, I&gt;;
 
     <span class="kw">fn </span>inner(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Inner {
         <span class="kw-2">&amp;</span><span class="self">self</span>.inner
     }
 
-    <span class="kw">fn </span>metadata(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; AccessorInfo {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
-            Operation::Info
-        );
-        <span class="kw">let </span>result = <span class="self">self</span>.inner.info();
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} -&gt; finished: {:?}"</span>,
-            <span class="self">self</span>.ctx.scheme,
-            Operation::Info,
-            result
-        );
+    <span class="kw">fn </span>metadata(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;AccessorInfo&gt; {
+        <span class="self">self</span>.logger
+            .log(<span class="kw-2">&amp;</span><span class="self">self</span>.info, Operation::Info, <span class="kw-2">&amp;</span>[], <span class="string">"started"</span>, <span class="prelude-val">None</span>);
 
-        result
+        <span class="kw">let </span>info = <span class="self">self</span>.info.clone();
+
+        <span class="self">self</span>.logger
+            .log(<span class="kw-2">&amp;</span><span class="self">self</span>.info, Operation::Info, <span class="kw-2">&amp;</span>[], <span class="string">"finished"</span>, <span class="prelude-val">None</span>);
+
+        info
     }
 
     <span class="kw">async fn </span>create_dir(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpCreateDir) -&gt; <span class="prelude-ty">Result</span>&lt;RpCreateDir&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} path={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::CreateDir,
-            path
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .create_dir(path, args)
             .<span class="kw">await
             </span>.map(|v| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} -&gt; finished"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::CreateDir,
-                    path
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"finished"</span>,
+                    <span class="prelude-val">None</span>,
                 );
                 v
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::CreateDir,
-                        path,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                    )
-                };
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::CreateDir,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
     }
 
     <span class="kw">async fn </span>read(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpRead) -&gt; <span class="prelude-ty">Result</span>&lt;(RpRead, <span class="self">Self</span>::Reader)&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} path={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::Read,
-            path,
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .read(path, args)
             .<span class="kw">await
             </span>.map(|(rp, r)| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} -&gt; got reader"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::Read,
-                    path,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"created reader"</span>,
+                    <span class="prelude-val">None</span>,
                 );
                 (
                     rp,
-                    LoggingReader::new(<span class="self">self</span>.ctx.clone(), Operation::Read, path, r),
+                    LoggingReader::new(<span class="self">self</span>.info.clone(), <span class="self">self</span>.logger.clone(), path, r),
                 )
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::Read,
-                        path,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                    )
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::Read,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
     }
 
     <span class="kw">async fn </span>write(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpWrite) -&gt; <span class="prelude-ty">Result</span>&lt;(RpWrite, <span class="self">Self</span>::Writer)&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} path={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::Write,
-            path
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .write(path, args)
             .<span class="kw">await
             </span>.map(|(rp, w)| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} -&gt; start writing"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::Write,
-                    path,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"created writer"</span>,
+                    <span class="prelude-val">None</span>,
                 );
-                <span class="kw">let </span>w = LoggingWriter::new(<span class="self">self</span>.ctx.clone(), Operation::Write, path, w);
+                <span class="kw">let </span>w = LoggingWriter::new(<span class="self">self</span>.info.clone(), <span class="self">self</span>.logger.clone(), path, w);
                 (rp, w)
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::Write,
-                        path,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                    )
-                };
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::Write,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
     }
 
     <span class="kw">async fn </span>copy(<span class="kw-2">&amp;</span><span class="self">self</span>, from: <span class="kw-2">&amp;</span>str, to: <span class="kw-2">&amp;</span>str, args: OpCopy) -&gt; <span class="prelude-ty">Result</span>&lt;RpCopy&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} from={} to={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::Copy,
-            from,
-            to
+            <span class="kw-2">&amp;</span>[(<span class="string">"from"</span>, from), (<span class="string">"to"</span>, to)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .copy(from, to, args)
             .<span class="kw">await
             </span>.map(|v| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} from={} to={} -&gt; finished"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::Copy,
-                    from,
-                    to
+                    <span class="kw-2">&amp;</span>[(<span class="string">"from"</span>, from), (<span class="string">"to"</span>, to)],
+                    <span class="string">"finished"</span>,
+                    <span class="prelude-val">None</span>,
                 );
                 v
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} from={} to={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::Copy,
-                        from,
-                        to,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err),
-                    )
-                };
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::Copy,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"from"</span>, from), (<span class="string">"to"</span>, to)],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
     }
 
     <span class="kw">async fn </span>rename(<span class="kw-2">&amp;</span><span class="self">self</span>, from: <span class="kw-2">&amp;</span>str, to: <span class="kw-2">&amp;</span>str, args: OpRename) -&gt; <span class="prelude-ty">Result</span>&lt;RpRename&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} from={} to={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::Rename,
-            from,
-            to
+            <span class="kw-2">&amp;</span>[(<span class="string">"from"</span>, from), (<span class="string">"to"</span>, to)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .rename(from, to, args)
             .<span class="kw">await
             </span>.map(|v| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} from={} to={} -&gt; finished"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::Rename,
-                    from,
-                    to
+                    <span class="kw-2">&amp;</span>[(<span class="string">"from"</span>, from), (<span class="string">"to"</span>, to)],
+                    <span class="string">"finished"</span>,
+                    <span class="prelude-val">None</span>,
                 );
                 v
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} from={} to={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::Rename,
-                        from,
-                        to,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                    )
-                };
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::Rename,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"from"</span>, from), (<span class="string">"to"</span>, to)],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
     }
 
     <span class="kw">async fn </span>stat(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpStat) -&gt; <span class="prelude-ty">Result</span>&lt;RpStat&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} path={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::Stat,
-            path
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .stat(path, args)
             .<span class="kw">await
             </span>.map(|v| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} -&gt; finished: {v:?}"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::Stat,
-                    path
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"finished"</span>,
+                    <span class="prelude-val">None</span>,
                 );
                 v
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::Stat,
-                        path,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                    );
-                };
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::Stat,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
     }
 
     <span class="kw">async fn </span>delete(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpDelete) -&gt; <span class="prelude-ty">Result</span>&lt;RpDelete&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} path={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::Delete,
-            path
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .delete(path, args.clone())
             .inspect(|v| <span class="kw">match </span>v {
                 <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
-                    <span class="macro">debug!</span>(
-                        target: LOGGING_TARGET,
-                        <span class="string">"service={} operation={} path={} -&gt; finished"</span>,
-                        <span class="self">self</span>.ctx.scheme,
+                    <span class="self">self</span>.logger.log(
+                        <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                         Operation::Delete,
-                        path
+                        <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                        <span class="string">"finished"</span>,
+                        <span class="prelude-val">None</span>,
                     );
                 }
                 <span class="prelude-val">Err</span>(err) =&gt; {
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(err) {
-                        <span class="macro">log!</span>(
-                            target: LOGGING_TARGET,
-                            lvl,
-                            <span class="string">"service={} operation={} path={} -&gt; {}"</span>,
-                            <span class="self">self</span>.ctx.scheme,
-                            Operation::Delete,
-                            path,
-                            <span class="self">self</span>.ctx.error_print(err)
-                        );
-                    }
+                    <span class="self">self</span>.logger.log(
+                        <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                        Operation::Delete,
+                        <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                        <span class="string">"failed"</span>,
+                        <span class="prelude-val">Some</span>(err),
+                    );
                 }
             })
             .<span class="kw">await
     </span>}
 
     <span class="kw">async fn </span>list(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpList) -&gt; <span class="prelude-ty">Result</span>&lt;(RpList, <span class="self">Self</span>::Lister)&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} path={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::List,
-            path
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .list(path, args)
             .map(|v| <span class="kw">match </span>v {
                 <span class="prelude-val">Ok</span>((rp, v)) =&gt; {
-                    <span class="macro">debug!</span>(
-                        target: LOGGING_TARGET,
-                        <span class="string">"service={} operation={} path={} -&gt; start listing dir"</span>,
-                        <span class="self">self</span>.ctx.scheme,
+                    <span class="self">self</span>.logger.log(
+                        <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                         Operation::List,
-                        path
+                        <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                        <span class="string">"created lister"</span>,
+                        <span class="prelude-val">None</span>,
                     );
-                    <span class="kw">let </span>streamer = LoggingLister::new(<span class="self">self</span>.ctx.clone(), path, Operation::List, v);
+                    <span class="kw">let </span>streamer =
+                        LoggingLister::new(<span class="self">self</span>.info.clone(), <span class="self">self</span>.logger.clone(), path, v);
                     <span class="prelude-val">Ok</span>((rp, streamer))
                 }
                 <span class="prelude-val">Err</span>(err) =&gt; {
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                        <span class="macro">log!</span>(
-                            target: LOGGING_TARGET,
-                            lvl,
-                            <span class="string">"service={} operation={} path={} -&gt; {}"</span>,
-                            <span class="self">self</span>.ctx.scheme,
-                            Operation::List,
-                            path,
-                            <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                        );
-                    }
+                    <span class="self">self</span>.logger.log(
+                        <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                        Operation::List,
+                        <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                        <span class="string">"failed"</span>,
+                        <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                    );
                     <span class="prelude-val">Err</span>(err)
                 }
             })
@@ -1926,39 +1909,35 @@
     </span>}
 
     <span class="kw">async fn </span>presign(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpPresign) -&gt; <span class="prelude-ty">Result</span>&lt;RpPresign&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} path={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::Presign,
-            path
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .presign(path, args)
             .<span class="kw">await
             </span>.map(|v| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} -&gt; finished: {v:?}"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::Presign,
-                    path
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"finished"</span>,
+                    <span class="prelude-val">None</span>,
                 );
                 v
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::Presign,
-                        path,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                    );
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::Presign,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
     }
@@ -1966,471 +1945,437 @@
     <span class="kw">async fn </span>batch(<span class="kw-2">&amp;</span><span class="self">self</span>, args: OpBatch) -&gt; <span class="prelude-ty">Result</span>&lt;RpBatch&gt; {
         <span class="kw">let </span>(op, count) = (args.operation()[<span class="number">0</span>].<span class="number">1</span>.operation(), args.operation().len());
 
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={}-{op} count={count} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::Batch,
+            <span class="kw-2">&amp;</span>[(<span class="string">"op"</span>, op.into_static()), (<span class="string">"count"</span>, <span class="kw-2">&amp;</span>count.to_string())],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .batch(args)
             .map_ok(|v| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={}-{op} count={count} -&gt; finished: {}, succeed: {}, failed: {}"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::Batch,
-                    v.results().len(),
-                    v.results().iter().filter(|(<span class="kw">_</span>, v)|v.is_ok()).count(),
-                    v.results().iter().filter(|(<span class="kw">_</span>, v)|v.is_err()).count(),
+                    <span class="kw-2">&amp;</span>[(<span class="string">"op"</span>, op.into_static()), (<span class="string">"count"</span>, <span class="kw-2">&amp;</span>count.to_string())],
+                    <span class="kw-2">&amp;</span><span class="macro">format!</span>(
+                        <span class="string">"finished: {}, succeed: {}, failed: {}"</span>,
+                        v.results().len(),
+                        v.results().iter().filter(|(<span class="kw">_</span>, v)| v.is_ok()).count(),
+                        v.results().iter().filter(|(<span class="kw">_</span>, v)| v.is_err()).count(),
+                    ),
+                    <span class="prelude-val">None</span>,
                 );
                 v
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={}-{op} count={count} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::Batch,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                    );
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::Batch,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"op"</span>, op.into_static()), (<span class="string">"count"</span>, <span class="kw-2">&amp;</span>count.to_string())],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
             .<span class="kw">await
     </span>}
 
     <span class="kw">fn </span>blocking_create_dir(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpCreateDir) -&gt; <span class="prelude-ty">Result</span>&lt;RpCreateDir&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} path={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::BlockingCreateDir,
-            path
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .blocking_create_dir(path, args)
             .map(|v| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} -&gt; finished"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::BlockingCreateDir,
-                    path
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"finished"</span>,
+                    <span class="prelude-val">None</span>,
                 );
                 v
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::BlockingCreateDir,
-                        path,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                    );
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingCreateDir,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
     }
 
     <span class="kw">fn </span>blocking_read(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpRead) -&gt; <span class="prelude-ty">Result</span>&lt;(RpRead, <span class="self">Self</span>::BlockingReader)&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} path={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::BlockingRead,
-            path,
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .blocking_read(path, args.clone())
             .map(|(rp, r)| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} -&gt; got reader"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::BlockingRead,
-                    path,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"created reader"</span>,
+                    <span class="prelude-val">None</span>,
                 );
-                <span class="kw">let </span>r = LoggingReader::new(<span class="self">self</span>.ctx.clone(), Operation::BlockingRead, path, r);
+                <span class="kw">let </span>r = LoggingReader::new(<span class="self">self</span>.info.clone(), <span class="self">self</span>.logger.clone(), path, r);
                 (rp, r)
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::BlockingRead,
-                        path,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                    );
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingRead,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
     }
 
     <span class="kw">fn </span>blocking_write(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpWrite) -&gt; <span class="prelude-ty">Result</span>&lt;(RpWrite, <span class="self">Self</span>::BlockingWriter)&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} path={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::BlockingWrite,
-            path,
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .blocking_write(path, args)
             .map(|(rp, w)| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} -&gt; start writing"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::BlockingWrite,
-                    path,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"created writer"</span>,
+                    <span class="prelude-val">None</span>,
                 );
-                <span class="kw">let </span>w = LoggingWriter::new(<span class="self">self</span>.ctx.clone(), Operation::BlockingWrite, path, w);
+                <span class="kw">let </span>w = LoggingWriter::new(<span class="self">self</span>.info.clone(), <span class="self">self</span>.logger.clone(), path, w);
                 (rp, w)
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::BlockingWrite,
-                        path,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                    );
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingWrite,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
     }
 
     <span class="kw">fn </span>blocking_copy(<span class="kw-2">&amp;</span><span class="self">self</span>, from: <span class="kw-2">&amp;</span>str, to: <span class="kw-2">&amp;</span>str, args: OpCopy) -&gt; <span class="prelude-ty">Result</span>&lt;RpCopy&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} from={} to={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::BlockingCopy,
-            from,
-            to,
+            <span class="kw-2">&amp;</span>[(<span class="string">"from"</span>, from), (<span class="string">"to"</span>, to)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .blocking_copy(from, to, args)
             .map(|v| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} from={} to={} -&gt; finished"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::BlockingCopy,
-                    from,
-                    to,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"from"</span>, from), (<span class="string">"to"</span>, to)],
+                    <span class="string">"finished"</span>,
+                    <span class="prelude-val">None</span>,
                 );
                 v
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} from={} to={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::BlockingCopy,
-                        from,
-                        to,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                    );
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingCopy,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"from"</span>, from), (<span class="string">"to"</span>, to)],
+                    <span class="string">""</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
     }
 
     <span class="kw">fn </span>blocking_rename(<span class="kw-2">&amp;</span><span class="self">self</span>, from: <span class="kw-2">&amp;</span>str, to: <span class="kw-2">&amp;</span>str, args: OpRename) -&gt; <span class="prelude-ty">Result</span>&lt;RpRename&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} from={} to={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::BlockingRename,
-            from,
-            to,
+            <span class="kw-2">&amp;</span>[(<span class="string">"from"</span>, from), (<span class="string">"to"</span>, to)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .blocking_rename(from, to, args)
             .map(|v| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} from={} to={} -&gt; finished"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::BlockingRename,
-                    from,
-                    to,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"from"</span>, from), (<span class="string">"to"</span>, to)],
+                    <span class="string">"finished"</span>,
+                    <span class="prelude-val">None</span>,
                 );
                 v
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} from={} to={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::BlockingRename,
-                        from,
-                        to,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                    );
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingRename,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"from"</span>, from), (<span class="string">"to"</span>, to)],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
     }
 
     <span class="kw">fn </span>blocking_stat(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpStat) -&gt; <span class="prelude-ty">Result</span>&lt;RpStat&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} path={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::BlockingStat,
-            path
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .blocking_stat(path, args)
             .map(|v| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} -&gt; finished: {v:?}"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::BlockingStat,
-                    path
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"finished"</span>,
+                    <span class="prelude-val">None</span>,
                 );
                 v
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::BlockingStat,
-                        path,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                    );
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingStat,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
     }
 
     <span class="kw">fn </span>blocking_delete(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpDelete) -&gt; <span class="prelude-ty">Result</span>&lt;RpDelete&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} path={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::BlockingDelete,
-            path
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .blocking_delete(path, args)
             .map(|v| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} -&gt; finished"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::BlockingDelete,
-                    path
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"finished"</span>,
+                    <span class="prelude-val">None</span>,
                 );
                 v
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::BlockingDelete,
-                        path,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                    );
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingDelete,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
     }
 
     <span class="kw">fn </span>blocking_list(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpList) -&gt; <span class="prelude-ty">Result</span>&lt;(RpList, <span class="self">Self</span>::BlockingLister)&gt; {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} path={} -&gt; started"</span>,
-            <span class="self">self</span>.ctx.scheme,
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
             Operation::BlockingList,
-            path
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
         );
 
         <span class="self">self</span>.inner
             .blocking_list(path, args)
             .map(|(rp, v)| {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} -&gt; got dir"</span>,
-                    <span class="self">self</span>.ctx.scheme,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
                     Operation::BlockingList,
-                    path
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">"created lister"</span>,
+                    <span class="prelude-val">None</span>,
                 );
-                <span class="kw">let </span>li = LoggingLister::new(<span class="self">self</span>.ctx.clone(), path, Operation::BlockingList, v);
+                <span class="kw">let </span>li = LoggingLister::new(<span class="self">self</span>.info.clone(), <span class="self">self</span>.logger.clone(), path, v);
                 (rp, li)
             })
             .map_err(|err| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        Operation::BlockingList,
-                        path,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err)
-                    );
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingList,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, path)],
+                    <span class="string">""</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 err
             })
     }
 }
 
 <span class="doccomment">/// `LoggingReader` is a wrapper of `BytesReader`, with logging functionality.
-</span><span class="kw">pub struct </span>LoggingReader&lt;R&gt; {
-    ctx: LoggingContext,
+</span><span class="kw">pub struct </span>LoggingReader&lt;R, I: LoggingInterceptor&gt; {
+    info: Arc&lt;AccessorInfo&gt;,
+    logger: I,
     path: String,
-    op: Operation,
 
-    read: AtomicU64,
+    read: u64,
     inner: R,
 }
 
-<span class="kw">impl</span>&lt;R&gt; LoggingReader&lt;R&gt; {
-    <span class="kw">fn </span>new(ctx: LoggingContext, op: Operation, path: <span class="kw-2">&amp;</span>str, reader: R) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;R, I: LoggingInterceptor&gt; LoggingReader&lt;R, I&gt; {
+    <span class="kw">fn </span>new(info: Arc&lt;AccessorInfo&gt;, logger: I, path: <span class="kw-2">&amp;</span>str, reader: R) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            ctx,
-            op,
+            info,
+            logger,
             path: path.to_string(),
 
-            read: AtomicU64::new(<span class="number">0</span>),
+            read: <span class="number">0</span>,
             inner: reader,
         }
     }
 }
 
-<span class="kw">impl</span>&lt;R&gt; Drop <span class="kw">for </span>LoggingReader&lt;R&gt; {
-    <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="macro">debug!</span>(
-            target: LOGGING_TARGET,
-            <span class="string">"service={} operation={} path={} read={} -&gt; data read finished"</span>,
-            <span class="self">self</span>.ctx.scheme,
-            <span class="self">self</span>.op,
-            <span class="self">self</span>.path,
-            <span class="self">self</span>.read.load(Ordering::Relaxed)
-        );
-    }
-}
-
-<span class="kw">impl</span>&lt;R: oio::Read&gt; oio::Read <span class="kw">for </span>LoggingReader&lt;R&gt; {
+<span class="kw">impl</span>&lt;R: oio::Read, I: LoggingInterceptor&gt; oio::Read <span class="kw">for </span>LoggingReader&lt;R, I&gt; {
     <span class="kw">async fn </span>read(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Buffer&gt; {
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+            Operation::ReaderRead,
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"read"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.read.to_string())],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
+        );
+
         <span class="kw">match </span><span class="self">self</span>.inner.read().<span class="kw">await </span>{
             <span class="prelude-val">Ok</span>(bs) =&gt; {
-                <span class="self">self</span>.read
-                    .fetch_add(bs.remaining() <span class="kw">as </span>u64, Ordering::Relaxed);
-                <span class="macro">trace!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} read={} -&gt; read returns {}B"</span>,
-                    <span class="self">self</span>.ctx.scheme,
-                    ReadOperation::Read,
-                    <span class="self">self</span>.path,
-                    <span class="self">self</span>.read.load(Ordering::Relaxed),
-                    bs.remaining()
+                <span class="self">self</span>.read += bs.len() <span class="kw">as </span>u64;
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::ReaderRead,
+                    <span class="kw-2">&amp;</span>[
+                        (<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path),
+                        (<span class="string">"read"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.read.to_string()),
+                        (<span class="string">"size"</span>, <span class="kw-2">&amp;</span>bs.len().to_string()),
+                    ],
+                    <span class="kw">if </span>bs.is_empty() {
+                        <span class="string">"finished"
+                    </span>} <span class="kw">else </span>{
+                        <span class="string">"succeeded"
+                    </span>},
+                    <span class="prelude-val">None</span>,
                 );
                 <span class="prelude-val">Ok</span>(bs)
             }
             <span class="prelude-val">Err</span>(err) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} read={} -&gt; read failed: {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        ReadOperation::Read,
-                        <span class="self">self</span>.path,
-                        <span class="self">self</span>.read.load(Ordering::Relaxed),
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err),
-                    )
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::ReaderRead,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"read"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.read.to_string())],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 <span class="prelude-val">Err</span>(err)
             }
         }
     }
 }
 
-<span class="kw">impl</span>&lt;R: oio::BlockingRead&gt; oio::BlockingRead <span class="kw">for </span>LoggingReader&lt;R&gt; {
+<span class="kw">impl</span>&lt;R: oio::BlockingRead, I: LoggingInterceptor&gt; oio::BlockingRead <span class="kw">for </span>LoggingReader&lt;R, I&gt; {
     <span class="kw">fn </span>read(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Buffer&gt; {
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+            Operation::BlockingReaderRead,
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"read"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.read.to_string())],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
+        );
+
         <span class="kw">match </span><span class="self">self</span>.inner.read() {
             <span class="prelude-val">Ok</span>(bs) =&gt; {
-                <span class="self">self</span>.read
-                    .fetch_add(bs.remaining() <span class="kw">as </span>u64, Ordering::Relaxed);
-                <span class="macro">trace!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} read={} -&gt; read returns {}B"</span>,
-                    <span class="self">self</span>.ctx.scheme,
-                    ReadOperation::BlockingRead,
-                    <span class="self">self</span>.path,
-                    <span class="self">self</span>.read.load(Ordering::Relaxed),
-                    bs.remaining()
+                <span class="self">self</span>.read += bs.len() <span class="kw">as </span>u64;
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingReaderRead,
+                    <span class="kw-2">&amp;</span>[
+                        (<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path),
+                        (<span class="string">"read"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.read.to_string()),
+                        (<span class="string">"size"</span>, <span class="kw-2">&amp;</span>bs.len().to_string()),
+                    ],
+                    <span class="kw">if </span>bs.is_empty() {
+                        <span class="string">"finished"
+                    </span>} <span class="kw">else </span>{
+                        <span class="string">"succeeded"
+                    </span>},
+                    <span class="prelude-val">None</span>,
                 );
                 <span class="prelude-val">Ok</span>(bs)
             }
             <span class="prelude-val">Err</span>(err) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} read={} -&gt; read failed: {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        ReadOperation::BlockingRead,
-                        <span class="self">self</span>.path,
-                        <span class="self">self</span>.read.load(Ordering::Relaxed),
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err),
-                    );
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingReaderRead,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"read"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.read.to_string())],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 <span class="prelude-val">Err</span>(err)
             }
         }
     }
 }
 
-<span class="kw">pub struct </span>LoggingWriter&lt;W&gt; {
-    ctx: LoggingContext,
-    op: Operation,
+<span class="kw">pub struct </span>LoggingWriter&lt;W, I&gt; {
+    info: Arc&lt;AccessorInfo&gt;,
+    logger: I,
     path: String,
 
     written: u64,
     inner: W,
 }
 
-<span class="kw">impl</span>&lt;W&gt; LoggingWriter&lt;W&gt; {
-    <span class="kw">fn </span>new(ctx: LoggingContext, op: Operation, path: <span class="kw-2">&amp;</span>str, writer: W) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;W, I&gt; LoggingWriter&lt;W, I&gt; {
+    <span class="kw">fn </span>new(info: Arc&lt;AccessorInfo&gt;, logger: I, path: <span class="kw-2">&amp;</span>str, writer: W) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            ctx,
-            op,
+            info,
+            logger,
             path: path.to_string(),
 
             written: <span class="number">0</span>,
@@ -2439,251 +2384,270 @@
     }
 }
 
-<span class="kw">impl</span>&lt;W: oio::Write&gt; oio::Write <span class="kw">for </span>LoggingWriter&lt;W&gt; {
-    <span class="kw">async fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Buffer) -&gt; <span class="prelude-ty">Result</span>&lt;usize&gt; {
-        <span class="kw">match </span><span class="self">self</span>.inner.write(bs.clone()).<span class="kw">await </span>{
-            <span class="prelude-val">Ok</span>(n) =&gt; {
-                <span class="self">self</span>.written += n <span class="kw">as </span>u64;
-                <span class="macro">trace!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} written={}B -&gt; input data {}B, write {}B"</span>,
-                    <span class="self">self</span>.ctx.scheme,
-                    WriteOperation::Write,
-                    <span class="self">self</span>.path,
-                    <span class="self">self</span>.written,
-                    bs.len(),
-                    n,
+<span class="kw">impl</span>&lt;W: oio::Write, I: LoggingInterceptor&gt; oio::Write <span class="kw">for </span>LoggingWriter&lt;W, I&gt; {
+    <span class="kw">async fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Buffer) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+        <span class="kw">let </span>size = bs.len();
+
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+            Operation::WriterWrite,
+            <span class="kw-2">&amp;</span>[
+                (<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path),
+                (<span class="string">"written"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.written.to_string()),
+                (<span class="string">"size"</span>, <span class="kw-2">&amp;</span>size.to_string()),
+            ],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
+        );
+
+        <span class="kw">match </span><span class="self">self</span>.inner.write(bs).<span class="kw">await </span>{
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
+                <span class="self">self</span>.written += size <span class="kw">as </span>u64;
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::WriterWrite,
+                    <span class="kw-2">&amp;</span>[
+                        (<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path),
+                        (<span class="string">"written"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.written.to_string()),
+                        (<span class="string">"size"</span>, <span class="kw-2">&amp;</span>size.to_string()),
+                    ],
+                    <span class="string">"succeeded"</span>,
+                    <span class="prelude-val">None</span>,
                 );
-                <span class="prelude-val">Ok</span>(n)
+                <span class="prelude-val">Ok</span>(())
             }
             <span class="prelude-val">Err</span>(err) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} written={}B -&gt; data write failed: {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        WriteOperation::Write,
-                        <span class="self">self</span>.path,
-                        <span class="self">self</span>.written,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err),
-                    )
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::WriterWrite,
+                    <span class="kw-2">&amp;</span>[
+                        (<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path),
+                        (<span class="string">"written"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.written.to_string()),
+                        (<span class="string">"size"</span>, <span class="kw-2">&amp;</span>size.to_string()),
+                    ],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 <span class="prelude-val">Err</span>(err)
             }
         }
     }
 
     <span class="kw">async fn </span>abort(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+            Operation::WriterAbort,
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"written"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.written.to_string())],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
+        );
+
         <span class="kw">match </span><span class="self">self</span>.inner.abort().<span class="kw">await </span>{
             <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
-                <span class="macro">trace!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} written={}B -&gt; abort writer"</span>,
-                    <span class="self">self</span>.ctx.scheme,
-                    WriteOperation::Abort,
-                    <span class="self">self</span>.path,
-                    <span class="self">self</span>.written,
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::WriterAbort,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"written"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.written.to_string())],
+                    <span class="string">"succeeded"</span>,
+                    <span class="prelude-val">None</span>,
                 );
                 <span class="prelude-val">Ok</span>(())
             }
             <span class="prelude-val">Err</span>(err) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} written={}B -&gt; abort writer failed: {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        WriteOperation::Abort,
-                        <span class="self">self</span>.path,
-                        <span class="self">self</span>.written,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err),
-                    )
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::WriterAbort,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"written"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.written.to_string())],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 <span class="prelude-val">Err</span>(err)
             }
         }
     }
 
     <span class="kw">async fn </span>close(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+            Operation::WriterClose,
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"written"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.written.to_string())],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
+        );
+
         <span class="kw">match </span><span class="self">self</span>.inner.close().<span class="kw">await </span>{
             <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} written={}B -&gt; data written finished"</span>,
-                    <span class="self">self</span>.ctx.scheme,
-                    <span class="self">self</span>.op,
-                    <span class="self">self</span>.path,
-                    <span class="self">self</span>.written
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::WriterClose,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"written"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.written.to_string())],
+                    <span class="string">"succeeded"</span>,
+                    <span class="prelude-val">None</span>,
                 );
                 <span class="prelude-val">Ok</span>(())
             }
             <span class="prelude-val">Err</span>(err) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} written={}B -&gt; data close failed: {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        WriteOperation::Close,
-                        <span class="self">self</span>.path,
-                        <span class="self">self</span>.written,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err),
-                    )
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::WriterClose,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"written"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.written.to_string())],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 <span class="prelude-val">Err</span>(err)
             }
         }
     }
 }
 
-<span class="kw">impl</span>&lt;W: oio::BlockingWrite&gt; oio::BlockingWrite <span class="kw">for </span>LoggingWriter&lt;W&gt; {
-    <span class="kw">fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Buffer) -&gt; <span class="prelude-ty">Result</span>&lt;usize&gt; {
-        <span class="kw">match </span><span class="self">self</span>.inner.write(bs.clone()) {
-            <span class="prelude-val">Ok</span>(n) =&gt; {
-                <span class="self">self</span>.written += n <span class="kw">as </span>u64;
-                <span class="macro">trace!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} written={}B -&gt; input data {}B, write {}B"</span>,
-                    <span class="self">self</span>.ctx.scheme,
-                    WriteOperation::BlockingWrite,
-                    <span class="self">self</span>.path,
-                    <span class="self">self</span>.written,
-                    bs.len(),
-                    n
+<span class="kw">impl</span>&lt;W: oio::BlockingWrite, I: LoggingInterceptor&gt; oio::BlockingWrite <span class="kw">for </span>LoggingWriter&lt;W, I&gt; {
+    <span class="kw">fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Buffer) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+        <span class="kw">let </span>size = bs.len();
+
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+            Operation::BlockingWriterWrite,
+            <span class="kw-2">&amp;</span>[
+                (<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path),
+                (<span class="string">"written"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.written.to_string()),
+                (<span class="string">"size"</span>, <span class="kw-2">&amp;</span>size.to_string()),
+            ],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
+        );
+
+        <span class="kw">match </span><span class="self">self</span>.inner.write(bs) {
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingWriterWrite,
+                    <span class="kw-2">&amp;</span>[
+                        (<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path),
+                        (<span class="string">"written"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.written.to_string()),
+                        (<span class="string">"size"</span>, <span class="kw-2">&amp;</span>size.to_string()),
+                    ],
+                    <span class="string">"succeeded"</span>,
+                    <span class="prelude-val">None</span>,
                 );
-                <span class="prelude-val">Ok</span>(n)
+                <span class="prelude-val">Ok</span>(())
             }
             <span class="prelude-val">Err</span>(err) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} written={}B -&gt; data write failed: {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        WriteOperation::BlockingWrite,
-                        <span class="self">self</span>.path,
-                        <span class="self">self</span>.written,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err),
-                    )
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingWriterWrite,
+                    <span class="kw-2">&amp;</span>[
+                        (<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path),
+                        (<span class="string">"written"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.written.to_string()),
+                        (<span class="string">"size"</span>, <span class="kw-2">&amp;</span>size.to_string()),
+                    ],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 <span class="prelude-val">Err</span>(err)
             }
         }
     }
 
     <span class="kw">fn </span>close(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+            Operation::BlockingWriterClose,
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"written"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.written.to_string())],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
+        );
+
         <span class="kw">match </span><span class="self">self</span>.inner.close() {
             <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} written={}B -&gt; data written finished"</span>,
-                    <span class="self">self</span>.ctx.scheme,
-                    <span class="self">self</span>.op,
-                    <span class="self">self</span>.path,
-                    <span class="self">self</span>.written
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingWriterWrite,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"written"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.written.to_string())],
+                    <span class="string">"succeeded"</span>,
+                    <span class="prelude-val">None</span>,
                 );
                 <span class="prelude-val">Ok</span>(())
             }
             <span class="prelude-val">Err</span>(err) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(<span class="kw-2">&amp;</span>err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} written={}B -&gt; data close failed: {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        WriteOperation::BlockingClose,
-                        <span class="self">self</span>.path,
-                        <span class="self">self</span>.written,
-                        <span class="self">self</span>.ctx.error_print(<span class="kw-2">&amp;</span>err),
-                    )
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingWriterClose,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"written"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.written.to_string())],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>err),
+                );
                 <span class="prelude-val">Err</span>(err)
             }
         }
     }
 }
 
-<span class="kw">pub struct </span>LoggingLister&lt;P&gt; {
-    ctx: LoggingContext,
+<span class="kw">pub struct </span>LoggingLister&lt;P, I: LoggingInterceptor&gt; {
+    info: Arc&lt;AccessorInfo&gt;,
+    logger: I,
     path: String,
-    op: Operation,
 
-    finished: bool,
+    listed: usize,
     inner: P,
 }
 
-<span class="kw">impl</span>&lt;P&gt; LoggingLister&lt;P&gt; {
-    <span class="kw">fn </span>new(ctx: LoggingContext, path: <span class="kw-2">&amp;</span>str, op: Operation, inner: P) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;P, I: LoggingInterceptor&gt; LoggingLister&lt;P, I&gt; {
+    <span class="kw">fn </span>new(info: Arc&lt;AccessorInfo&gt;, logger: I, path: <span class="kw-2">&amp;</span>str, inner: P) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            ctx,
+            info,
+            logger,
             path: path.to_string(),
-            op,
-            finished: <span class="bool-val">false</span>,
+
+            listed: <span class="number">0</span>,
             inner,
         }
     }
 }
 
-<span class="kw">impl</span>&lt;P&gt; Drop <span class="kw">for </span>LoggingLister&lt;P&gt; {
-    <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">if </span><span class="self">self</span>.finished {
-            <span class="macro">debug!</span>(
-                target: LOGGING_TARGET,
-                <span class="string">"service={} operation={} path={} -&gt; all entries read finished"</span>,
-                <span class="self">self</span>.ctx.scheme,
-                <span class="self">self</span>.op,
-                <span class="self">self</span>.path
-            );
-        } <span class="kw">else </span>{
-            <span class="macro">debug!</span>(
-                target: LOGGING_TARGET,
-                <span class="string">"service={} operation={} path={} -&gt; partial entries read finished"</span>,
-                <span class="self">self</span>.ctx.scheme,
-                <span class="self">self</span>.op,
-                <span class="self">self</span>.path
-            );
-        }
-    }
-}
-
-<span class="kw">impl</span>&lt;P: oio::List&gt; oio::List <span class="kw">for </span>LoggingLister&lt;P&gt; {
+<span class="kw">impl</span>&lt;P: oio::List, I: LoggingInterceptor&gt; oio::List <span class="kw">for </span>LoggingLister&lt;P, I&gt; {
     <span class="kw">async fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;oio::Entry&gt;&gt; {
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+            Operation::ListerNext,
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"listed"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.listed.to_string())],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
+        );
+
         <span class="kw">let </span>res = <span class="self">self</span>.inner.next().<span class="kw">await</span>;
 
         <span class="kw">match </span><span class="kw-2">&amp;</span>res {
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(de)) =&gt; {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} -&gt; listed entry: {}"</span>,
-                    <span class="self">self</span>.ctx.scheme,
-                    <span class="self">self</span>.op,
-                    <span class="self">self</span>.path,
-                    de.path(),
+                <span class="self">self</span>.listed += <span class="number">1</span>;
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::ListerNext,
+                    <span class="kw-2">&amp;</span>[
+                        (<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path),
+                        (<span class="string">"listed"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.listed.to_string()),
+                        (<span class="string">"entry"</span>, de.path()),
+                    ],
+                    <span class="string">"succeeded"</span>,
+                    <span class="prelude-val">None</span>,
                 );
             }
             <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} -&gt; finished"</span>,
-                    <span class="self">self</span>.ctx.scheme,
-                    <span class="self">self</span>.op,
-                    <span class="self">self</span>.path
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::ListerNext,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"listed"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.listed.to_string())],
+                    <span class="string">"finished"</span>,
+                    <span class="prelude-val">None</span>,
                 );
-                <span class="self">self</span>.finished = <span class="bool-val">true</span>;
             }
             <span class="prelude-val">Err</span>(err) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        <span class="self">self</span>.op,
-                        <span class="self">self</span>.path,
-                        <span class="self">self</span>.ctx.error_print(err)
-                    )
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::ListerNext,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"listed"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.listed.to_string())],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(err),
+                );
             }
         };
 
@@ -2691,43 +2655,49 @@
     }
 }
 
-<span class="kw">impl</span>&lt;P: oio::BlockingList&gt; oio::BlockingList <span class="kw">for </span>LoggingLister&lt;P&gt; {
+<span class="kw">impl</span>&lt;P: oio::BlockingList, I: LoggingInterceptor&gt; oio::BlockingList <span class="kw">for </span>LoggingLister&lt;P, I&gt; {
     <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;oio::Entry&gt;&gt; {
-        <span class="kw">let </span>res = <span class="self">self</span>.inner.next();
+        <span class="self">self</span>.logger.log(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+            Operation::BlockingListerNext,
+            <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"listed"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.listed.to_string())],
+            <span class="string">"started"</span>,
+            <span class="prelude-val">None</span>,
+        );
 
+        <span class="kw">let </span>res = <span class="self">self</span>.inner.next();
         <span class="kw">match </span><span class="kw-2">&amp;</span>res {
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(des)) =&gt; {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} -&gt; listed entry: {}"</span>,
-                    <span class="self">self</span>.ctx.scheme,
-                    <span class="self">self</span>.op,
-                    <span class="self">self</span>.path,
-                    des.path(),
+            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(de)) =&gt; {
+                <span class="self">self</span>.listed += <span class="number">1</span>;
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingListerNext,
+                    <span class="kw-2">&amp;</span>[
+                        (<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path),
+                        (<span class="string">"listed"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.listed.to_string()),
+                        (<span class="string">"entry"</span>, de.path()),
+                    ],
+                    <span class="string">"succeeded"</span>,
+                    <span class="prelude-val">None</span>,
                 );
             }
             <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; {
-                <span class="macro">debug!</span>(
-                    target: LOGGING_TARGET,
-                    <span class="string">"service={} operation={} path={} -&gt; finished"</span>,
-                    <span class="self">self</span>.ctx.scheme,
-                    <span class="self">self</span>.op,
-                    <span class="self">self</span>.path
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingListerNext,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"listed"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.listed.to_string())],
+                    <span class="string">"finished"</span>,
+                    <span class="prelude-val">None</span>,
                 );
-                <span class="self">self</span>.finished = <span class="bool-val">true</span>;
             }
             <span class="prelude-val">Err</span>(err) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(lvl) = <span class="self">self</span>.ctx.error_level(err) {
-                    <span class="macro">log!</span>(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        <span class="string">"service={} operation={} path={} -&gt; {}"</span>,
-                        <span class="self">self</span>.ctx.scheme,
-                        <span class="self">self</span>.op,
-                        <span class="self">self</span>.path,
-                        <span class="self">self</span>.ctx.error_print(err)
-                    )
-                }
+                <span class="self">self</span>.logger.log(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.info,
+                    Operation::BlockingListerNext,
+                    <span class="kw-2">&amp;</span>[(<span class="string">"path"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.path), (<span class="string">"listed"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.listed.to_string())],
+                    <span class="string">"failed"</span>,
+                    <span class="prelude-val">Some</span>(err),
+                );
             }
         };
 

@@ -247,14 +247,14 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>std::sync::Arc;
+
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::raw::MaybeSend;
-    <span class="kw">use </span>std::collections::HashMap;
-    <span class="kw">use </span>std::sync::Arc;
 
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_trait() {
-        <span class="kw">let </span>op = Operator::via_map(Scheme::Memory, HashMap::default()).unwrap();
+        <span class="kw">let </span>op = Operator::via_iter(Scheme::Memory, []).unwrap();
 
         <span class="kw">let </span>acc = op.into_inner();
         <span class="kw">let </span>ctx = Arc::new(WriteContext::new(

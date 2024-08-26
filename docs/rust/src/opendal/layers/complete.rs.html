@@ -919,10 +919,6 @@
 <a href="#919" id="919">919</a>
 <a href="#920" id="920">920</a>
 <a href="#921" id="921">921</a>
-<a href="#922" id="922">922</a>
-<a href="#923" id="923">923</a>
-<a href="#924" id="924">924</a>
-<a href="#925" id="925">925</a>
 </pre></div><pre class="rust"><code><span class="comment">// Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -1043,7 +1039,7 @@
 
 <span class="doccomment">/// Provide complete wrapper for backend.
 </span><span class="kw">pub struct </span>CompleteAccessor&lt;A: Access&gt; {
-    meta: AccessorInfo,
+    meta: Arc&lt;AccessorInfo&gt;,
     inner: Arc&lt;A&gt;,
 }
 
@@ -1120,10 +1116,7 @@
         </span><span class="kw">if </span>path.ends_with(<span class="string">'/'</span>) &amp;&amp; capability.list_with_recursive {
             <span class="kw">let </span>(<span class="kw">_</span>, <span class="kw-2">mut </span>l) = <span class="self">self
                 </span>.inner
-                .list(
-                    path.trim_end_matches(<span class="string">'/'</span>),
-                    OpList::default().with_recursive(<span class="bool-val">true</span>).with_limit(<span class="number">1</span>),
-                )
+                .list(path, OpList::default().with_recursive(<span class="bool-val">true</span>).with_limit(<span class="number">1</span>))
                 .<span class="kw">await</span><span class="question-mark">?</span>;
 
             <span class="kw">return if </span>oio::List::next(<span class="kw-2">&amp;mut </span>l).<span class="kw">await</span><span class="question-mark">?</span>.is_some() {
@@ -1171,10 +1164,9 @@
 
         <span class="comment">// Otherwise, we can simulate stat a dir path via `list`.
         </span><span class="kw">if </span>path.ends_with(<span class="string">'/'</span>) &amp;&amp; capability.list_with_recursive {
-            <span class="kw">let </span>(<span class="kw">_</span>, <span class="kw-2">mut </span>l) = <span class="self">self</span>.inner.blocking_list(
-                path.trim_end_matches(<span class="string">'/'</span>),
-                OpList::default().with_recursive(<span class="bool-val">true</span>).with_limit(<span class="number">1</span>),
-            )<span class="question-mark">?</span>;
+            <span class="kw">let </span>(<span class="kw">_</span>, <span class="kw-2">mut </span>l) = <span class="self">self
+                </span>.inner
+                .blocking_list(path, OpList::default().with_recursive(<span class="bool-val">true</span>).with_limit(<span class="number">1</span>))<span class="question-mark">?</span>;
 
             <span class="kw">return if </span>oio::BlockingList::next(<span class="kw-2">&amp;mut </span>l)<span class="question-mark">?</span>.is_some() {
                 <span class="prelude-val">Ok</span>(RpStat::new(Metadata::new(EntryMode::DIR)))
@@ -1305,13 +1297,14 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.inner
     }
 
-    <span class="kw">fn </span>metadata(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; AccessorInfo {
-        <span class="kw">let </span><span class="kw-2">mut </span>meta = <span class="self">self</span>.meta.clone();
+    <span class="comment">// Todo: May move the logic to the implement of Layer::layer of CompleteAccessor&lt;A&gt;
+    </span><span class="kw">fn </span>metadata(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;AccessorInfo&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>meta = (<span class="kw-2">*</span><span class="self">self</span>.meta).clone();
         <span class="kw">let </span>cap = meta.full_capability_mut();
         <span class="kw">if </span>cap.list &amp;&amp; cap.write_can_empty {
             cap.create_dir = <span class="bool-val">true</span>;
         }
-        meta
+        meta.into()
     }
 
     <span class="kw">async fn </span>create_dir(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpCreateDir) -&gt; <span class="prelude-ty">Result</span>&lt;RpCreateDir&gt; {
@@ -1579,7 +1572,7 @@
 <span class="kw">where
     </span>W: oio::Write,
 {
-    <span class="kw">async fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Buffer) -&gt; <span class="prelude-ty">Result</span>&lt;usize&gt; {
+    <span class="kw">async fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Buffer) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
         <span class="kw">let </span>w = <span class="self">self</span>.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, <span class="string">"writer has been closed or aborted"</span>)
         })<span class="question-mark">?</span>;
@@ -1614,13 +1607,12 @@
 <span class="kw">where
     </span>W: oio::BlockingWrite,
 {
-    <span class="kw">fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Buffer) -&gt; <span class="prelude-ty">Result</span>&lt;usize&gt; {
+    <span class="kw">fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bs: Buffer) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
         <span class="kw">let </span>w = <span class="self">self</span>.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, <span class="string">"writer has been closed or aborted"</span>)
         })<span class="question-mark">?</span>;
-        <span class="kw">let </span>n = w.write(bs)<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(n)
+        w.write(bs)
     }
 
     <span class="kw">fn </span>close(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
@@ -1656,11 +1648,11 @@
         <span class="kw">type </span>BlockingWriter = oio::BlockingWriter;
         <span class="kw">type </span>BlockingLister = oio::BlockingLister;
 
-        <span class="kw">fn </span>info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; AccessorInfo {
+        <span class="kw">fn </span>info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;AccessorInfo&gt; {
             <span class="kw">let </span><span class="kw-2">mut </span>info = AccessorInfo::default();
             info.set_native_capability(<span class="self">self</span>.capability);
 
-            info
+            info.into()
         }
 
         <span class="kw">async fn </span>create_dir(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span>str, <span class="kw">_</span>: OpCreateDir) -&gt; <span class="prelude-ty">Result</span>&lt;RpCreateDir&gt; {

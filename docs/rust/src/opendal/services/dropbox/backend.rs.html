@@ -325,7 +325,7 @@
     <span class="kw">type </span>BlockingWriter = ();
     <span class="kw">type </span>BlockingLister = ();
 
-    <span class="kw">fn </span>info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; AccessorInfo {
+    <span class="kw">fn </span>info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;AccessorInfo&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Dropbox)
             .set_root(<span class="kw-2">&amp;</span><span class="self">self</span>.core.root)
@@ -352,7 +352,7 @@
 
                 ..Default::default()
             });
-        ma
+        ma.into()
     }
 
     <span class="kw">async fn </span>create_dir(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, _args: OpCreateDir) -&gt; <span class="prelude-ty">Result</span>&lt;RpCreateDir&gt; {
@@ -377,7 +377,7 @@
         //
         // Let's try our best to make sure it won't failed for rate limited issues.
         </span><span class="kw">let </span>res = { || <span class="self">self</span>.core.dropbox_create_folder(path) }
-            .retry(<span class="kw-2">&amp;*</span>BACKOFF)
+            .retry(<span class="kw-2">*</span>BACKOFF)
             .when(|e| e.is_temporary())
             .<span class="kw">await
             </span><span class="comment">// Set this error to permanent to avoid retrying.
@@ -546,7 +546,7 @@
                     .async_job_id
                     .expect(<span class="string">"async_job_id should be present"</span>);
                 <span class="kw">let </span>res = { || <span class="self">self</span>.core.dropbox_delete_batch_check(job_id.clone()) }
-                    .retry(<span class="kw-2">&amp;*</span>BACKOFF)
+                    .retry(<span class="kw-2">*</span>BACKOFF)
                     .when(|e| e.is_temporary())
                     .<span class="kw">await</span><span class="question-mark">?</span>;
 

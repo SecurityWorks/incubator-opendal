@@ -673,17 +673,6 @@
 <a href="#673" id="673">673</a>
 <a href="#674" id="674">674</a>
 <a href="#675" id="675">675</a>
-<a href="#676" id="676">676</a>
-<a href="#677" id="677">677</a>
-<a href="#678" id="678">678</a>
-<a href="#679" id="679">679</a>
-<a href="#680" id="680">680</a>
-<a href="#681" id="681">681</a>
-<a href="#682" id="682">682</a>
-<a href="#683" id="683">683</a>
-<a href="#684" id="684">684</a>
-<a href="#685" id="685">685</a>
-<a href="#686" id="686">686</a>
 </pre></div><pre class="rust"><code><span class="comment">// Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -702,7 +691,8 @@
 // under the License.
 
 </span><span class="kw">use </span>core::fmt::Debug;
-<span class="kw">use </span>std::collections::HashMap;
+<span class="kw">use </span>std::fmt::Formatter;
+<span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>bytes::Buf;
 <span class="kw">use </span>http::header::CONTENT_LENGTH;
@@ -722,29 +712,30 @@
 <span class="kw">use </span><span class="kw">super</span>::writer::WebhdfsWriter;
 <span class="kw">use </span><span class="kw">super</span>::writer::WebhdfsWriters;
 <span class="kw">use </span><span class="kw">crate</span>::raw::<span class="kw-2">*</span>;
+<span class="kw">use </span><span class="kw">crate</span>::services::WebhdfsConfig;
 <span class="kw">use crate</span>::<span class="kw-2">*</span>;
 
 <span class="kw">const </span>WEBHDFS_DEFAULT_ENDPOINT: <span class="kw-2">&amp;</span>str = <span class="string">"http://127.0.0.1:9870"</span>;
+
+<span class="kw">impl </span>Configurator <span class="kw">for </span>WebhdfsConfig {
+    <span class="kw">type </span>Builder = WebhdfsBuilder;
+    <span class="kw">fn </span>into_builder(<span class="self">self</span>) -&gt; <span class="self">Self</span>::Builder {
+        WebhdfsBuilder { config: <span class="self">self </span>}
+    }
+}
 
 <span class="doccomment">/// [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html)'s REST API support.
 </span><span class="attr">#[doc = <span class="macro">include_str!</span>(<span class="string">"docs.md"</span>)]
 #[derive(Default, Clone)]
 </span><span class="kw">pub struct </span>WebhdfsBuilder {
-    root: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    endpoint: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    delegation: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    disable_list_batch: bool,
-    <span class="doccomment">/// atomic_write_dir of this backend
-    </span><span class="kw">pub </span>atomic_write_dir: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    config: WebhdfsConfig,
 }
 
 <span class="kw">impl </span>Debug <span class="kw">for </span>WebhdfsBuilder {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
-        f.debug_struct(<span class="string">"Builder"</span>)
-            .field(<span class="string">"root"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.root)
-            .field(<span class="string">"endpoint"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.endpoint)
-            .field(<span class="string">"atomic_write_dir"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.atomic_write_dir)
-            .finish_non_exhaustive()
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
+        <span class="kw">let </span><span class="kw-2">mut </span>d = f.debug_struct(<span class="string">"WebhdfsBuilder"</span>);
+        d.field(<span class="string">"config"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.config);
+        d.finish_non_exhaustive()
     }
 }
 
@@ -756,10 +747,12 @@
     /// # Note
     ///
     /// The root will be automatically created if not exists.
-    </span><span class="kw">pub fn </span>root(<span class="kw-2">&amp;mut </span><span class="self">self</span>, root: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="kw">if </span>!root.is_empty() {
-            <span class="self">self</span>.root = <span class="prelude-val">Some</span>(root.to_string())
-        }
+    </span><span class="kw">pub fn </span>root(<span class="kw-2">mut </span><span class="self">self</span>, root: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.config.root = <span class="kw">if </span>root.is_empty() {
+            <span class="prelude-val">None
+        </span>} <span class="kw">else </span>{
+            <span class="prelude-val">Some</span>(root.to_string())
+        };
 
         <span class="self">self
     </span>}
@@ -774,10 +767,10 @@
     ///
     /// If user inputs endpoint without scheme, we will
     /// prepend `http://` to it.
-    </span><span class="kw">pub fn </span>endpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, endpoint: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>endpoint(<span class="kw-2">mut </span><span class="self">self</span>, endpoint: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span>!endpoint.is_empty() {
             <span class="comment">// trim tailing slash so we can accept `http://127.0.0.1:9870/`
-            </span><span class="self">self</span>.endpoint = <span class="prelude-val">Some</span>(endpoint.trim_end_matches(<span class="string">'/'</span>).to_string());
+            </span><span class="self">self</span>.config.endpoint = <span class="prelude-val">Some</span>(endpoint.trim_end_matches(<span class="string">'/'</span>).to_string());
         }
         <span class="self">self
     </span>}
@@ -788,9 +781,9 @@
     /// # Note
     /// The builder prefers using delegation token over username.
     /// If both are set, delegation token will be used.
-    </span><span class="kw">pub fn </span>delegation(<span class="kw-2">&amp;mut </span><span class="self">self</span>, delegation: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>delegation(<span class="kw-2">mut </span><span class="self">self</span>, delegation: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span>!delegation.is_empty() {
-            <span class="self">self</span>.delegation = <span class="prelude-val">Some</span>(delegation.to_string());
+            <span class="self">self</span>.config.delegation = <span class="prelude-val">Some</span>(delegation.to_string());
         }
         <span class="self">self
     </span>}
@@ -800,9 +793,9 @@
     /// # Note
     ///
     /// When listing a directory, the backend will default to use batch listing.
-    /// If disable, the backend will list all files/directories in one request.
-    </span><span class="kw">pub fn </span>disable_list_batch(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="self">self</span>.disable_list_batch = <span class="bool-val">true</span>;
+    /// If disabled, the backend will list all files/directories in one request.
+    </span><span class="kw">pub fn </span>disable_list_batch(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.config.disable_list_batch = <span class="bool-val">true</span>;
         <span class="self">self
     </span>}
 
@@ -811,8 +804,8 @@
     /// # Notes
     ///
     /// If not set, write multi not support, eg: `.opendal_tmp/`.
-    </span><span class="kw">pub fn </span>atomic_write_dir(<span class="kw-2">&amp;mut </span><span class="self">self</span>, dir: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
-        <span class="self">self</span>.atomic_write_dir = <span class="kw">if </span>dir.is_empty() {
+    </span><span class="kw">pub fn </span>atomic_write_dir(<span class="kw-2">mut </span><span class="self">self</span>, dir: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.config.atomic_write_dir = <span class="kw">if </span>dir.is_empty() {
             <span class="prelude-val">None
         </span>} <span class="kw">else </span>{
             <span class="prelude-val">Some</span>(String::from(dir))
@@ -823,22 +816,7 @@
 
 <span class="kw">impl </span>Builder <span class="kw">for </span>WebhdfsBuilder {
     <span class="kw">const </span>SCHEME: Scheme = Scheme::Webhdfs;
-    <span class="kw">type </span>Accessor = WebhdfsBackend;
-
-    <span class="kw">fn </span>from_map(map: HashMap&lt;String, String&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>builder = WebhdfsBuilder::default();
-
-        map.get(<span class="string">"root"</span>).map(|v| builder.root(v));
-        map.get(<span class="string">"endpoint"</span>).map(|v| builder.endpoint(v));
-        map.get(<span class="string">"delegation"</span>).map(|v| builder.delegation(v));
-        map.get(<span class="string">"disable_list_batch"</span>)
-            .filter(|v| v == <span class="kw-2">&amp;</span><span class="string">"true"</span>)
-            .map(|<span class="kw">_</span>| builder.disable_list_batch());
-        map.get(<span class="string">"atomic_write_dir"</span>)
-            .map(|v| builder.atomic_write_dir(v));
-
-        builder
-    }
+    <span class="kw">type </span>Config = WebhdfsConfig;
 
     <span class="doccomment">/// build the backend
     ///
@@ -846,15 +824,15 @@
     ///
     /// when building backend, the built backend will check if the root directory
     /// exits.
-    /// if the directory does not exits, the directory will be automatically created
-    </span><span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Accessor&gt; {
+    /// if the directory does not exit, the directory will be automatically created
+    </span><span class="kw">fn </span>build(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>Access&gt; {
         <span class="macro">debug!</span>(<span class="string">"start building backend: {:?}"</span>, <span class="self">self</span>);
 
-        <span class="kw">let </span>root = normalize_root(<span class="kw-2">&amp;</span><span class="self">self</span>.root.take().unwrap_or_default());
+        <span class="kw">let </span>root = normalize_root(<span class="kw-2">&amp;</span><span class="self">self</span>.config.root.unwrap_or_default());
         <span class="macro">debug!</span>(<span class="string">"backend use root {root}"</span>);
 
         <span class="comment">// check scheme
-        </span><span class="kw">let </span>endpoint = <span class="kw">match </span><span class="self">self</span>.endpoint.take() {
+        </span><span class="kw">let </span>endpoint = <span class="kw">match </span><span class="self">self</span>.config.endpoint {
             <span class="prelude-val">Some</span>(endpoint) =&gt; {
                 <span class="kw">if </span>endpoint.starts_with(<span class="string">"http"</span>) {
                     endpoint
@@ -866,11 +844,11 @@
         };
         <span class="macro">debug!</span>(<span class="string">"backend use endpoint {}"</span>, endpoint);
 
-        <span class="kw">let </span>atomic_write_dir = <span class="self">self</span>.atomic_write_dir.take();
+        <span class="kw">let </span>atomic_write_dir = <span class="self">self</span>.config.atomic_write_dir;
 
         <span class="kw">let </span>auth = <span class="self">self
-            </span>.delegation
-            .take()
+            </span>.config
+            .delegation
             .map(|dt| <span class="macro">format!</span>(<span class="string">"delegation_token={dt}"</span>));
 
         <span class="kw">let </span>client = HttpClient::new()<span class="question-mark">?</span>;
@@ -882,7 +860,7 @@
             client,
             root_checker: OnceCell::new(),
             atomic_write_dir,
-            disable_list_batch: <span class="self">self</span>.disable_list_batch,
+            disable_list_batch: <span class="self">self</span>.config.disable_list_batch,
         };
 
         <span class="prelude-val">Ok</span>(backend)
@@ -1222,7 +1200,7 @@
     <span class="kw">type </span>BlockingWriter = ();
     <span class="kw">type </span>BlockingLister = ();
 
-    <span class="kw">fn </span>info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; AccessorInfo {
+    <span class="kw">fn </span>info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;AccessorInfo&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>am = AccessorInfo::default();
         am.set_scheme(Scheme::Webhdfs)
             .set_root(<span class="kw-2">&amp;</span><span class="self">self</span>.root)
@@ -1242,7 +1220,7 @@
 
                 ..Default::default()
             });
-        am
+        am.into()
     }
 
     <span class="doccomment">/// Create a file or directory
